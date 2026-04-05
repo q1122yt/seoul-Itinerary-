@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首爾喝掛之旅 - 友誼大考驗</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fafaf9; /* stone-50 */
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.5; }
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+
+        .sakura {
+            position: fixed;
+            top: -10px;
+            pointer-events: none;
+            z-index: 0;
+            animation: fall linear infinite;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .tab-active {
+            color: #0f766e; /* teal-700 */
+            transform: scale(1.1);
+        }
+
+        .ticket-clip {
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 70%, 10px 60%, 10px 40%, 0 30%);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- 核心圖示組件 ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        // --- 分類樣式 ---
+        const CATEGORY_STYLES = {
+            '美食': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: 'utensils', badge: 'bg-orange-100 text-orange-800' },
+            '購物': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: 'shopping-bag', badge: 'bg-purple-100 text-purple-800' },
+            '景點': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: 'camera', badge: 'bg-blue-100 text-blue-800' },
+            '住宿': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: 'home', badge: 'bg-emerald-100 text-emerald-800' },
+            '航班': { bg: 'bg-teal-700', text: 'text-white', border: 'border-teal-800', icon: 'plane', badge: 'bg-teal-800 text-white' },
+            '其他': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: 'more-vertical', badge: 'bg-gray-100 text-gray-800' }
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('itinerary');
+            const [activeDay, setActiveDay] = useState(1);
+            const [rate, setRate] = useState(42);
+            const [krw, setKrw] = useState('');
+            const [twd, setTwd] = useState('');
+            const [travelers, setTravelers] = useState(['我', '旅伴']);
+            const [showCopyToast, setShowCopyToast] = useState(false);
+
+            // 初始數據
+            const [itineraries, setItineraries] = useState({
+                1: [
+                    { id: 'd1-1', type: '航班', name: '去程航班 EDQCZ3', time: '17:55', origin: 'RMQ', dest: 'ICN', duration: '2h 40m', note: '台中清泉崗 17:55 出發', address: '台中市沙鹿區中航路一段168號' },
+                    { id: 'd1-2', type: '住宿', name: 'Airbnb 入住', time: '22:30', note: '3-1 Eunhaengjeong-ro 3-gil', address: '서울 양천구 은행정로3길 3-1' }
+                ],
+                2: [
+                    { id: 'd2-1', type: '美食', name: 'Imok Smoke Dining', time: '12:30', note: '已訂位/付費', address: '서울 강남구 압구정로2길 6', status: 'booked' },
+                    { id: 'd2-2', type: '購物', name: 'Money Box 換錢', time: '15:00', note: '新沙洞分店', address: '서울 강남구 도산대로11길 5' },
+                    { id: 'd2-3', type: '美食', name: '먹거리양곱창 (烤牛腸)', time: '18:00', note: '在地人推薦', address: '서울 서초구 강南대로 99길 35' },
+                    { id: 'd2-4', type: '美食', name: '新沙煎餅 (Sinsajeon)', time: '21:00', note: '必喝蜂巢瑪格麗酒', address: '서울 강남구 도산대로11길 18' }
+                ],
+                3: [
+                    { id: 'd3-1', type: '美食', name: '倫敦貝果博物館 (安國店)', time: '08:30', note: '可以線上取號', address: '서울 종로구 北村路4街 20', canBook: true },
+                    { id: 'd3-2', type: '景點', name: '韓服體驗', time: '10:00', note: '預計3小時', address: '서울 종로구 사직로 137' },
+                    { id: 'd3-3', type: '美食', name: '藍瓶咖啡 (三清店)', time: '13:00', note: '三清洞店', address: '서울 종로구 北村路 5街 76' },
+                    { id: 'd3-4', type: '美食', name: '聖水洞：水芹菜烤肉', time: '16:00', note: '清爽解膩', address: '서울 성動區 연務場街 38' },
+                    { id: 'd3-5', type: '美食', name: '祖傳三代馬鈴薯排骨湯', time: '21:00', note: '24小時營業', address: '서울 성동구 연무場街 45' }
+                ],
+                4: [
+                    { id: 'd4-1', type: '美食', name: '牛味學 (Woo Mi Hak)', time: '12:00', note: '可訂位/高級韓牛', address: '서울 용산區 이태院路 238', canBook: true },
+                    { id: 'd4-2', type: '購物', name: '漢南洞：Mardi Mercredi', time: '14:30', note: '由最高處往下逛省力', address: '서울 용산구 이태員路 54街 58' },
+                    { id: 'd4-3', type: '美食', name: '소극적 韓式居酒屋', time: '17:00', note: '漢南本店', address: '서울 용산區 大使館路 31街 7' },
+                    { id: 'd4-4', type: '美食', name: '山清炭火烤肉 (麻谷本店)', time: '20:00', note: '可線上取號', address: '서울 강서구 마곡중앙8路 85', canBook: true }
+                ],
+                5: [
+                    { id: 'd5-1', type: '購物', name: '汝矣島現代百貨', time: '10:30', address: '서울 영등포구 여의대로 108' },
+                    { id: 'd5-2', type: '美食', name: '風川鰻魚', time: '13:00', address: '서울 中區 乙支路 99-1' },
+                    { id: 'd5-3', type: '景點', name: '明洞醫美預約', time: '17:00', address: '서울 中區 明洞7街 21', status: 'booked' },
+                    { id: 'd5-4', type: '美食', name: '烏達里家 醬蟹', time: '20:00', address: '서울 中區 明洞8나路 28' }
+                ],
+                6: [
+                    { id: 'd6-1', type: '購物', name: '望遠市場', time: '10:00', address: '서울 마포구 포은로8길 14' },
+                    { id: 'd6-2', type: '航班', name: '回程航班 KE2031', time: '14:45', origin: 'ICN', dest: 'RMQ', note: '回台中清泉崗' }
+                ]
+            });
+
+            const [spendingList, setSpendingList] = useState([]);
+            const [shoppingList, setShoppingList] = useState([]);
+
+            // 匯率計算邏輯
+            const handleKrwChange = (val) => { setKrw(val); if (val === '') setTwd(''); else setTwd((parseFloat(val) / rate).toFixed(0)); };
+            const handleTwdChange = (val) => { setTwd(val); if (val === '') setKrw(''); else setKrw((parseFloat(val) * rate).toFixed(0)); };
+            
+            const copyAddress = (text) => {
+                navigator.clipboard.writeText(text);
+                setShowCopyToast(true);
+                setTimeout(() => setShowCopyToast(false), 2000);
+            };
+
+            const navigateToNaver = (address) => {
+                window.open(`https://map.naver.com/v5/search/${encodeURIComponent(address)}`, '_blank');
+            };
+
+            // 分帳計算邏輯
+            const balances = useMemo(() => {
+                const b = {};
+                travelers.forEach(t => b[t] = { paid: 0, shouldPay: 0 });
+                spendingList.forEach(item => {
+                    const amount = parseFloat(item.amount) || 0;
+                    if (b[item.paidBy]) b[item.paidBy].paid += amount;
+                    const share = amount / item.splitBetween.length;
+                    item.splitBetween.forEach(p => { if (b[p]) b[p].shouldPay += share; });
+                });
+                return b;
+            }, [spendingList, travelers]);
+
+            const totalSpentKRW = spendingList.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+            const myNet = (balances['我']?.paid || 0) - (balances['我']?.shouldPay || 0);
+
+            const dates = [
+                { day: 'Thu', date: '16' }, { day: 'Fri', date: '17' }, { day: 'Sat', date: '18' },
+                { day: 'Sun', date: '19' }, { day: 'Mon', date: '20' }, { day: 'Tue', date: '21' }
+            ];
+
+            return (
+                <div className="min-h-screen pb-32 relative">
+                    {/* 櫻花裝飾 */}
+                    {[...Array(12)].map((_, i) => (
+                        <div key={i} className="sakura" style={{ 
+                            left: `${Math.random() * 100}%`, 
+                            animationDuration: `${Math.random() * 10 + 10}s`,
+                            animationDelay: `${Math.random() * 5}s`
+                        }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="white" fillOpacity="0.4"><path d="M12 21.5C12 21.5 19 16 21 11C23 6 18 2 13 5C12 5.5 12 6 12 6C12 6 12 5.5 11 5C6 2 1 6 3 11C5 16 12 21.5 12 21.5Z" /></svg>
+                        </div>
+                    ))}
+
+                    {/* Toast */}
+                    {showCopyToast && (
+                        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-bounce">
+                            <div className="bg-slate-800 text-white px-6 py-2 rounded-full text-sm font-bold shadow-2xl flex items-center gap-2">
+                                <Icon name="check" size={16} className="text-teal-400" /> 地址已複製
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Header */}
+                    <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-40 rounded-b-[40px] shadow-sm border-b border-stone-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-teal-700 p-2.5 rounded-2xl text-white shadow-lg">
+                                    <Icon name="calendar" size={24} />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+                                        {activeTab === 'itinerary' ? '首爾喝掛之旅' : activeTab === 'shopping' ? '我的購物籃' : activeTab === 'spending' ? '旅遊支出紀錄' : '旅遊核心資訊'}
+                                    </h1>
+                                    <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest leading-none mt-1">友誼大考驗</p>
+                                </div>
+                            </div>
+                            {activeTab === 'itinerary' && (
+                                <div className="bg-teal-50 px-3 py-1.5 rounded-full text-[10px] font-bold text-teal-700 uppercase shadow-inner">Day {activeDay}</div>
+                            )}
+                        </div>
+
+                        {activeTab === 'itinerary' && (
+                            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 px-1">
+                                {dates.map((d, i) => (
+                                    <button key={i} onClick={() => setActiveDay(i + 1)} className={`flex-none w-14 py-3 rounded-[24px] flex flex-col items-center justify-center transition-all ${activeDay === i + 1 ? 'bg-teal-700 text-white shadow-md' : 'bg-white text-stone-400 border border-stone-100'}`}>
+                                        <span className={`text-[12px] font-bold uppercase mb-0.5 ${activeDay === i + 1 ? 'text-teal-100' : 'text-stone-300'}`}>{d.day}</span>
+                                        <span className="text-xl font-bold leading-none">{d.date}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </header>
+
+                    <main className="px-5 pt-4 max-w-xl mx-auto space-y-6 relative z-10">
+                        {/* --- 行程分頁 --- */}
+                        {activeTab === 'itinerary' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-[30px] p-5 flex items-center justify-between border border-stone-200 shadow-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-amber-50 p-2.5 rounded-2xl text-amber-500 shadow-inner"><Icon name="sun" size={28} /></div>
+                                        <div><p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest leading-none">Weather</p><p className="text-base font-black text-slate-700">18°C 晴天 / 體感 16°C</p></div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 pb-10 text-left">
+                                    {itineraries[activeDay].map((item, idx) => {
+                                        const style = CATEGORY_STYLES[item.type] || CATEGORY_STYLES['其他'];
+                                        return (
+                                            <div key={item.id}>
+                                                <div className="flex items-center gap-4 px-6 h-12">
+                                                    <div className="w-[2px] h-full bg-stone-200 relative flex items-center justify-center">
+                                                        <div className="bg-white p-1 rounded-full border-2 border-stone-100 text-stone-400 shadow-sm"><Icon name="car" size={14} /></div>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-black text-teal-600 uppercase tracking-tighter">Uber / Taxi 預估時間</span>
+                                                        <span className="text-[10px] font-medium text-stone-400 italic">約 {15 + idx * 5} mins</span>
+                                                    </div>
+                                                </div>
+                                                <div className={`bg-white rounded-[35px] border ${style.border} shadow-sm overflow-hidden transition-all`}>
+                                                    {item.type === '航班' ? (
+                                                        <div className="bg-teal-700 p-6 text-white relative">
+                                                            <div className="flex justify-between items-center relative z-10">
+                                                                <div><p className="text-[9px] font-black opacity-50 uppercase">Dep</p><h3 className="text-2xl font-bold">{item.origin}</h3><p className="text-xs">{item.time}</p></div>
+                                                                <div className="flex-1 flex flex-col items-center px-4">
+                                                                    <span className="text-[8px] font-bold opacity-40 mb-1">{item.duration}</span>
+                                                                    <div className="w-full h-[1px] bg-white/20 relative"><Icon name="plane" size={14} className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-white" /></div>
+                                                                    <span className="text-[8px] font-bold uppercase mt-2">{item.name}</span>
+                                                                </div>
+                                                                <div className="text-right"><p className="text-[9px] font-black opacity-50 uppercase">Arr</p><h3 className="text-2xl font-bold">{item.dest}</h3><p className="text-xs">抵達</p></div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="p-5 space-y-4">
+                                                            <div className="flex gap-4">
+                                                                <div className={`w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center ${style.bg} ${style.text} border ${style.border} shadow-inner`}><Icon name={style.icon} size={22} /></div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-[10px] font-bold text-stone-400">{item.time}</span>
+                                                                            <span className={`${style.badge} text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tight`}>{item.type}</span>
+                                                                            {item.status === 'booked' && <span className="bg-rose-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black shadow-sm">已訂位</span>}
+                                                                            {item.canBook && <span className="bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black shadow-sm">可預約/取號</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <h4 className="font-black text-slate-800 text-lg leading-tight mt-1">{item.name}</h4>
+                                                                    <p className={`text-xs mt-1 font-medium ${style.text} opacity-80`}>✿ {item.note || 'Enjoy Seoul'}</p>
+                                                                </div>
+                                                            </div>
+                                                            {item.address && (
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={() => navigateToNaver(item.address)} className="flex-1 py-3 bg-teal-700 rounded-2xl flex items-center justify-center gap-2 text-white font-bold text-xs shadow-sm">Naver Map</button>
+                                                                    <button onClick={() => copyAddress(item.address)} className="px-5 py-3 bg-stone-100 rounded-2xl flex items-center justify-center gap-2 text-stone-600 font-bold text-xs border border-stone-200">複製地址</button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- 購物頁面 --- */}
+                        {activeTab === 'shopping' && (
+                            <div className="space-y-6 pt-4 text-center">
+                                <div className="bg-purple-50 p-6 rounded-[35px] border border-purple-100 text-purple-700 text-sm font-medium">🛒 旅行心願清單 ♡<br/><span className="text-xs opacity-60">記下想買的，不怕回國後悔！</span></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {shoppingList.map(item => (
+                                        <div key={item.id} className="bg-white rounded-[30px] border border-purple-100 shadow-sm p-4 space-y-3">
+                                            <div className="aspect-square bg-purple-50 rounded-2xl flex items-center justify-center overflow-hidden border border-purple-100">
+                                                {item.img ? <img src={item.img} className="w-full h-full object-cover" /> : <Icon name="image" size={32} className="text-purple-200" />}
+                                            </div>
+                                            <h4 className="font-bold text-purple-900 px-2 truncate text-sm">{item.name}</h4>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- 花費頁面 --- */}
+                        {activeTab === 'spending' && (
+                            <div className="space-y-6 text-center">
+                                <div className="bg-slate-800 rounded-[40px] p-8 text-white shadow-xl relative overflow-hidden border-b-8 border-teal-600">
+                                    <div className="relative z-10 text-left">
+                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Group Cost</p>
+                                        <h2 className="text-4xl font-black italic tracking-tight">{totalSpentKRW.toLocaleString()} <span className="text-sm font-normal opacity-40">KRW</span></h2>
+                                        <div className="mt-4 flex justify-around border-t border-white/10 pt-4">
+                                            <div><p className="text-[9px] text-stone-400 font-bold uppercase">我的應付</p><p className="text-lg font-black text-teal-400">{(balances['我']?.shouldPay || 0).toLocaleString()}</p></div>
+                                            <div className="text-right"><p className="text-[9px] text-stone-400 font-bold uppercase">分帳結餘</p><p className={`text-lg font-black ${myNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{myNet >= 0 ? `+${myNet.toLocaleString()}` : myNet.toLocaleString()}</p></div>
+                                        </div>
+                                    </div>
+                                    <Icon name="coins" size={100} className="absolute -right-6 -bottom-6 opacity-5 rotate-[-15deg]" />
+                                </div>
+                                <div className="space-y-3 pb-20 text-left">
+                                    {spendingList.map(item => (
+                                        <div key={item.id} className="bg-white rounded-[30px] p-5 border border-stone-200 shadow-sm flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center flex-shrink-0 border border-teal-100 font-bold text-xs">{item.category[0]}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-center mb-0.5"><span className="text-[9px] font-bold text-stone-400 uppercase">{item.date}</span><div className="flex gap-1"><span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${item.method === '信用卡' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{item.method}</span><span className="text-[8px] font-bold px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full">{item.paidBy}</span></div></div>
+                                                <h4 className="font-bold text-slate-800 leading-tight truncate">{item.name}</h4>
+                                            </div>
+                                            <div className="text-right"><p className="font-bold text-teal-700 leading-none">{parseFloat(item.amount).toLocaleString()}</p></div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- 資訊分頁 --- */}
+                        {activeTab === 'info' && (
+                            <div className="space-y-6 pb-20 text-left">
+                                <section className="bg-white rounded-[35px] p-6 shadow-sm border border-stone-200 space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700"><Icon name="calculator" /> 雙向匯率換算</h3>
+                                        <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-full border border-stone-100">
+                                            <span className="text-[10px] font-bold text-stone-400 uppercase">1 TWD = </span>
+                                            <input type="number" step="0.1" value={rate} onChange={e => setRate(e.target.value)} className="w-12 bg-transparent text-center font-black text-teal-600 outline-none" />
+                                            <span className="text-[10px] font-bold text-stone-400 uppercase">KRW</span>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-3">
+                                        <div className="space-y-1 text-center"><p className="text-[10px] font-black text-stone-400 uppercase">KRW 韓幣</p><input type="number" value={krw} onChange={e => handleKrwChange(e.target.value)} className="bg-stone-50 p-4 rounded-[20px] outline-none font-black text-xl text-teal-700 border border-transparent focus:border-teal-500 w-full text-center shadow-inner" /></div>
+                                        <div className="text-stone-300 mt-4"><Icon name="arrow-left-right" size={18} /></div>
+                                        <div className="space-y-1 text-center"><p className="text-[10px] font-black text-stone-400 uppercase">TWD 台幣</p><input type="number" value={twd} onChange={e => handleTwdChange(e.target.value)} className="bg-stone-50 p-4 rounded-[20px] outline-none font-black text-xl text-slate-800 border border-transparent focus:border-stone-400 w-full text-center shadow-inner" /></div>
+                                    </div>
+                                </section>
+                                
+                                <section className="space-y-4">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 uppercase tracking-widest"><Icon name="ticket" size={18} /> Boarding Passes</h3>
+                                        <div className="flex items-center gap-1 bg-teal-50 px-3 py-1 rounded-full text-teal-600">
+                                            <Icon name="timer" size={14} /><span className="text-[10px] font-bold">總飛行: 4h 40m</span>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* 去程 */}
+                                    <div className="bg-white rounded-[30px] shadow-sm border border-stone-100 overflow-hidden border-l-[12px] border-l-teal-600 relative p-6">
+                                        <div className="flex justify-between items-start mb-6 border-b border-stone-50 pb-4">
+                                            <div><span className="text-[9px] font-bold text-stone-400 uppercase">Outbound Flight</span><p className="text-lg font-black text-slate-800">EDQCZ3</p></div>
+                                            <div className="text-right"><span className="text-[9px] font-bold text-stone-400 uppercase">04/16 (THU)</span><p className="text-sm font-black text-teal-600 uppercase">TAICHUNG</p></div>
+                                        </div>
+                                        <div className="flex justify-between items-center px-2">
+                                            <div className="text-center"><h2 className="text-3xl font-black text-slate-700">RMQ</h2><p className="text-[10px] font-bold text-stone-400 mt-1 uppercase">17:55</p></div>
+                                            <div className="flex-1 flex flex-col items-center px-4"><span className="text-[9px] font-black text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full mb-1">2h 40m</span><div className="w-full h-[1.5px] bg-stone-100 relative"><Icon name="plane" size={14} className="absolute left-1/2 -translate-x-1/2 -top-[6px] text-teal-300" /></div></div>
+                                            <div className="text-center"><h2 className="text-3xl font-black text-slate-700">ICN</h2><p className="text-[10px] font-bold text-stone-400 mt-1 uppercase">21:35</p></div>
+                                        </div>
+                                    </div>
+
+                                    {/* 回程 */}
+                                    <div className="bg-white rounded-[30px] shadow-sm border border-stone-100 overflow-hidden border-l-[12px] border-l-emerald-500 relative p-6 opacity-90">
+                                        <div className="flex justify-between items-start mb-6 border-b border-stone-50 pb-4">
+                                            <div><span className="text-[9px] font-bold text-stone-400 uppercase">Return Flight</span><p className="text-lg font-black text-slate-800">KE2031</p></div>
+                                            <div className="text-right"><span className="text-[9px] font-bold text-stone-400 uppercase">04/21 (TUE)</span><p className="text-sm font-black text-emerald-600 uppercase">SEOUL</p></div>
+                                        </div>
+                                        <div className="flex justify-between items-center px-2">
+                                            <div className="text-center"><h2 className="text-3xl font-black text-slate-700">ICN</h2><p className="text-[10px] font-bold text-stone-400 mt-1 uppercase">14:45</p></div>
+                                            <div className="flex-1 flex flex-col items-center px-4"><span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full mb-1">2h 00m</span><div className="w-full h-[1.5px] bg-stone-100 relative"><Icon name="plane" size={14} className="absolute left-1/2 -translate-x-1/2 -top-[6px] text-emerald-300 rotate-180" /></div></div>
+                                            <div className="text-center"><h2 className="text-3xl font-black text-slate-700">RMQ</h2><p className="text-[10px] font-bold text-stone-400 mt-1 uppercase">16:45</p></div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Bottom Nav */}
+                    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 px-6 py-4 flex justify-between items-center z-[90] rounded-t-[45px] shadow-2xl">
+                        <button onClick={() => setActiveTab('itinerary')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-stone-300'}`}><Icon name="calendar" size={22} /><span className="text-[9px] font-black uppercase">行程</span></button>
+                        <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'shopping' ? 'text-purple-600' : 'text-stone-300'}`}><Icon name="shopping-basket" size={22} /><span className="text-[9px] font-black uppercase">購物</span></button>
+                        <button onClick={() => setActiveTab('spending')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'spending' ? 'text-teal-600' : 'text-stone-300'}`}><Icon name="coins" size={22} /><span className="text-[9px] font-black uppercase">花費</span></button>
+                        <button onClick={() => setActiveTab('info')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'info' ? 'text-teal-700' : 'text-stone-300'}`}><Icon name="info" size={22} /><span className="text-[9px] font-black uppercase">資訊</span></button>
+                    </nav>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
