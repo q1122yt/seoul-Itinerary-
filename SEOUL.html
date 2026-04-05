@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>首爾喝掛之旅 - 友誼大考驗</title>
-    <!-- 基礎框架與樣式 -->
+    <!-- 基礎框架 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -19,34 +19,38 @@
         .tab-active { color: #0f766e; transform: scale(1.1); font-weight: 900; }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .card-shadow { box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05); }
+        .btn-active { transform: scale(0.95); opacity: 0.9; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
+    <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- 預設資料 (防止白屏) ---
-        const DEFAULT_DATA = [
+        // --- 核心行程預設資料 ---
+        const INITIAL_DATA = [
             { day: 1, type: '航班', name: '去程航班 EDQCZ3', time: '17:55', note: '台中清泉崗 17:55 出發', address: '台中市沙鹿區中航路一段168號' },
             { day: 1, type: '住宿', name: 'Airbnb 入住', time: '22:30', note: '3-1 Eunhaengjeong-ro 3-gil', address: '서울 양천구 은행정로3길 3-1' },
             { day: 2, type: '美食', name: 'Imok Smoke Dining', time: '12:30', note: '已訂位/已付費', address: '서울 강남구 압구정로2길 6', status: 'booked' },
+            { day: 2, type: '購物', name: 'Money Box 換錢', time: '15:00', note: '新沙洞分店', address: '서울 강남구 도산대로11길 5' },
             { day: 2, type: '美食', name: '먹거리양곱창 (烤牛腸)', time: '18:00', note: '在地人推薦', address: '서울 서초구 강남대로99길 35' },
             { day: 2, type: '美食', name: '新沙煎餅 (Sinsajeon)', time: '21:00', note: '必喝蜂巢瑪格麗酒', address: '서울 강남구 도산대로11길 18' },
             { day: 3, type: '美食', name: '倫敦貝果博物館 (安國店)', time: '08:30', note: '可以線上取號', address: '서울 종로구 北村路4街 20', canBook: true },
             { day: 3, type: '景點', name: '韓服體驗', time: '10:00', note: '預計3小時', address: '서울 종로구 사직로 137' },
+            { day: 3, type: '美食', name: '藍瓶咖啡 (三清店)', time: '13:00', note: '三清洞店', address: '서울 종로구 北村路 5街 76' },
             { day: 3, type: '美食', name: '聖水洞：水芹菜烤肉', time: '16:00', note: '清爽解膩', address: '서울 성동구 연무장길 38' },
+            { day: 3, type: '美食', name: '祖傳三代馬鈴薯排骨湯', time: '21:00', note: '24小時營業', address: '서울 성동구 연무場街 45' },
             { day: 4, type: '美食', name: '牛味學 (Woo Mi Hak)', time: '12:00', note: '可訂位/高級韓牛', address: '서울 용산區 이태院路 238', canBook: true },
+            { day: 4, type: '購物', name: '漢南洞：Mardi Mercredi', time: '14:30', note: '一路往下坡逛省力', address: '서울 용산區 이태원로 54길 58' },
+            { day: 4, type: '美食', name: '소극적 韓式居酒屋', time: '17:00', note: '漢南本店', address: '서울 용산區 大使館路 31街 7' },
             { day: 4, type: '美食', name: '山清炭火烤肉 (麻谷本店)', time: '20:00', note: '可線上取號', address: '서울 강서구 마곡중앙8路 85', canBook: true },
             { day: 5, type: '購物', name: '汝矣島現代百貨', time: '10:30', address: '서울 영등포구 여의대로 108' },
+            { day: 5, type: '美食', name: '風川鰻魚', time: '13:00', address: '서울 中區 乙支路 99-1' },
             { day: 5, type: '購物', name: '樂天百貨 (明洞店)', time: '16:00', note: '明洞購物', address: '서울 中區 南大門路 81' },
             { day: 5, type: '景點', name: '明洞醫美預約', time: '17:00', address: '서울 中區 明洞7街 21', status: 'booked' },
             { day: 5, type: '美食', name: '烏達里家 醬蟹', time: '20:00', address: '서울 中區 明洞8나路 28' },
+            { day: 6, type: '購物', name: '望遠市場', time: '10:00', address: '서울 마포구 포은로8길 14' },
             { day: 6, type: '航班', name: '回程航班 KE2031', time: '14:45', note: '回台中清泉崗' }
         ];
 
@@ -65,87 +69,67 @@
         };
 
         const App = () => {
-            const [user, setUser] = useState(null);
             const [activeTab, setActiveTab] = useState('itinerary');
             const [activeDay, setActiveDay] = useState(1);
             
-            // 初始化行程為預設資料，確保雲端未連上時也能看到
+            // 行程狀態 (初始化時填入預設行程)
             const initialItin = {};
-            DEFAULT_DATA.forEach(item => {
+            INITIAL_DATA.forEach(item => {
                 if(!initialItin[item.day]) initialItin[item.day] = [];
                 initialItin[item.day].push({ ...item, id: Math.random().toString() });
             });
+
             const [itineraries, setItineraries] = useState(initialItin);
-            
             const [spendingList, setSpendingList] = useState([]);
-            const [shoppingList, setShoppingList] = useState([]);
+            const [shoppingList, setShoppingList] = useState([
+                { id: 's1', name: 'Mardi Mercredi 經典衛衣' },
+                { id: 's2', name: 'Tamburins 護手霜' }
+            ]);
+            
             const [rate, setRate] = useState(42);
             const [krw, setKrw] = useState('');
             const [twd, setTwd] = useState('');
             const [travelers] = useState(['任', '晉', '沛']);
+            const [showCopyToast, setShowCopyToast] = useState(false);
 
-            const [showModal, setShowModal] = useState(null);
+            // 彈窗狀態
+            const [showModal, setShowModal] = useState(null); 
             const [editingItem, setEditingItem] = useState(null);
             const [itinForm, setItinForm] = useState({ type: '美食', name: '', time: '12:00', address: '', note: '' });
             const [spendForm, setSpendForm] = useState({ name: '', amount: '', method: '現金', paidBy: '任', splitBetween: ['任', '晉', '沛'], date: new Date().toISOString().split('T')[0] });
-            const [showCopyToast, setShowCopyToast] = useState(false);
 
-            // 安全獲取 Firebase 設定
-            const getFirebaseConfig = () => {
-                try {
-                    return typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-                } catch (e) { return null; }
+            // 匯率連動
+            const handleKrwChange = (val) => { setKrw(val); setTwd(val ? (val/rate).toFixed(0) : ''); };
+            const handleTwdChange = (val) => { setTwd(val); setKrw(val ? (val*rate).toFixed(0) : ''); };
+
+            // 地址複製
+            const copyAddr = (txt) => {
+                const el = document.createElement('textarea'); el.value = txt; document.body.appendChild(el);
+                el.select(); document.execCommand('copy'); document.body.removeChild(el);
+                setShowCopyToast(true); setTimeout(() => setShowCopyToast(false), 2000);
             };
 
-            const config = getFirebaseConfig();
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drinking-ultimate-fixed';
-
-            useEffect(() => {
-                if (!config) return; // 沒設定就走離線模式
-                const app = initializeApp(config);
-                const db = getFirestore(app);
-                const auth = getAuth(app);
-
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-                        else await signInAnonymously(auth);
-                    } catch (e) { console.warn("Firebase Auth Fail - Running Offline Mode"); }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
-
-                // 資料同步監聽
-                if (auth.currentUser || true) {
-                    const itinRef = collection(db, 'artifacts', appId, 'public', 'data', 'itineraries');
-                    onSnapshot(itinRef, async (snap) => {
-                        if (snap.empty) {
-                            const batch = writeBatch(db);
-                            DEFAULT_DATA.forEach(item => batch.set(doc(itinRef), item));
-                            await batch.commit();
-                            return;
-                        }
-                        const data = {};
-                        snap.forEach(doc => {
-                            const item = { ...doc.data(), id: doc.id };
-                            if (!data[item.day]) data[item.day] = [];
-                            data[item.day].push(item);
-                        });
-                        Object.keys(data).forEach(d => data[d].sort((a,b) => a.time.localeCompare(b.time)));
-                        setItineraries(data);
-                    });
-
-                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'spending'), (snap) => {
-                        setSpendingList(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })).sort((a,b) => b.date.localeCompare(a.date)));
-                    });
-
-                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'shopping'), (snap) => {
-                        setShoppingList(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-                    });
+            // 行程操作
+            const saveItin = () => {
+                const dayData = [...(itineraries[activeDay] || [])];
+                if (editingItem) {
+                    const idx = dayData.findIndex(i => i.id === editingItem.id);
+                    dayData[idx] = { ...itinForm, id: editingItem.id };
+                } else {
+                    dayData.push({ ...itinForm, id: Math.random().toString() });
                 }
-                return () => unsubscribe();
-            }, []);
+                dayData.sort((a,b) => a.time.localeCompare(b.time));
+                setItineraries({ ...itineraries, [activeDay]: dayData });
+                setShowModal(null); setEditingItem(null);
+            };
 
+            const delItin = () => {
+                const dayData = itineraries[activeDay].filter(i => i.id !== editingItem.id);
+                setItineraries({ ...itineraries, [activeDay]: dayData });
+                setShowModal(null); setEditingItem(null);
+            };
+
+            // 分帳邏輯
             const balances = useMemo(() => {
                 const res = {};
                 travelers.forEach(t => res[t] = { paid: 0, cost: 0, final: 0 });
@@ -163,16 +147,11 @@
             }, [spendingList, travelers]);
 
             const totalKRW = spendingList.reduce((a, b) => a + (parseFloat(b.amount) || 0), 0);
-            const copyAddr = (txt) => {
-                const el = document.createElement('textarea'); el.value = txt; document.body.appendChild(el);
-                el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                setShowCopyToast(true); setTimeout(() => setShowCopyToast(false), 2000);
-            };
-
             const dates = [{d:'Thu',n:'16'},{d:'Fri',n:'17'},{d:'Sat',n:'18'},{d:'Sun',n:'19'},{d:'Mon',n:'20'},{d:'Tue',n:'21'}];
 
             return (
                 <div className="min-h-screen relative pb-32">
+                    {/* 背景櫻花裝飾 */}
                     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
                         {[...Array(6)].map((_, i) => (
                             <div key={i} className="sakura" style={{ left: `${Math.random() * 100}%`, animationDuration: `${Math.random() * 10 + 10}s`, animationDelay: `${i*2}s` }}>
@@ -181,9 +160,10 @@
                         ))}
                     </div>
 
-                    {showCopyToast && <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl">地址已複製！</div>}
+                    {showCopyToast && <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/90 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl">地址已複製成功！</div>}
 
-                    <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-40 rounded-b-[40px] shadow-sm border-b border-stone-100">
+                    {/* Header */}
+                    <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-40 rounded-b-[40px] shadow-sm border-b border-stone-100 text-left">
                         <div className="flex justify-between items-center mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="bg-teal-700 p-2.5 rounded-2xl text-white shadow-lg"><Icon name="beer" size={24} /></div>
@@ -206,20 +186,25 @@
                         )}
                     </header>
 
-                    <main className="px-5 pt-4 max-w-xl mx-auto space-y-6 relative z-10 text-left text-sm font-medium">
+                    <main className="px-5 pt-4 max-w-xl mx-auto space-y-6 relative z-10 text-left">
+                        {/* --- 行程分頁 --- */}
                         {activeTab === 'itinerary' && (
                             <div className="space-y-6 pb-20">
-                                <div className="bg-white rounded-[30px] p-5 flex items-center justify-between border border-stone-200 shadow-sm card-shadow">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-amber-50 p-2.5 rounded-2xl text-amber-500 shadow-inner"><Icon name="sun" size={28} /></div>
-                                        <div><p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest leading-none">Seoul Weather</p><p className="text-base font-black text-slate-700">18°C 晴天 / 體感 16°C</p></div>
+                                <div className="bg-white rounded-[30px] p-5 flex items-start justify-between border border-stone-200 shadow-sm card-shadow">
+                                    <div className="flex items-start gap-4">
+                                        <div className="bg-blue-50 p-2.5 rounded-2xl text-blue-500 shadow-inner mt-1"><Icon name="cloud-sun" size={28} /></div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest leading-none">4月氣候參考</p>
+                                            <p className="text-base font-black text-slate-700 mt-1">8°C ~ 19°C (溫差大)</p>
+                                            <p className="text-[10px] text-rose-400 font-bold mt-1 leading-relaxed">⚠️ 晚上喝完酒體感極冷，務必攜帶防風外套！</p>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="space-y-3">
                                     {(itineraries[activeDay] || []).map((item, idx) => {
                                         const s = CATEGORY_STYLES[item.type] || CATEGORY_STYLES['其他'];
                                         return (
-                                            <div key={item.id || idx}>
+                                            <div key={item.id}>
                                                 <div className="flex items-center gap-4 px-6 h-10">
                                                     <div className="w-[2px] h-full bg-stone-200 relative flex items-center justify-center"><Icon name="car" size={12} className="text-stone-300" /></div>
                                                     <span className="text-[9px] font-black text-teal-600 uppercase">Uber / Taxi 預估 {10+idx*10} mins</span>
@@ -235,6 +220,7 @@
                                                                     {item.status === 'booked' && <span className="bg-rose-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">已訂位</span>}
                                                                     {item.canBook && <span className="bg-emerald-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">可預約</span>}
                                                                 </div>
+                                                                <button onClick={() => { setEditingItem(item); setItinForm(item); setShowModal('itinerary'); }} className="text-stone-300 active:scale-95"><Icon name="more-vertical" size={18}/></button>
                                                             </div>
                                                             <h4 className="font-black text-slate-800 text-base leading-tight mt-1">{item.name}</h4>
                                                             <p className="text-xs text-stone-400 mt-1 italic">✿ {item.note || 'Enjoy Seoul'}</p>
@@ -242,7 +228,7 @@
                                                     </div>
                                                     {item.address && (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(item.address)}`)} className="flex-1 py-3 bg-teal-700 text-white font-bold text-xs rounded-2xl shadow-sm active:bg-teal-800">Naver Map</button>
+                                                            <button onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(item.address)}`)} className="flex-1 py-3 bg-teal-700 text-white font-bold text-xs rounded-2xl shadow-sm active:bg-teal-800 transition-colors">Naver Map</button>
                                                             <button onClick={() => copyAddr(item.address)} className="px-5 py-3 bg-stone-50 text-stone-600 font-bold text-xs rounded-2xl border border-stone-100">複製</button>
                                                         </div>
                                                     )}
@@ -251,14 +237,33 @@
                                         );
                                     })}
                                 </div>
+                                <button onClick={() => { setEditingItem(null); setItinForm({ type: '美食', name: '', time: '12:00', address: '', note: '' }); setShowModal('itinerary'); }} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white transition-transform active:scale-90 z-50"><Icon name="plus" size={32} /></button>
                             </div>
                         )}
 
+                        {/* --- 購物分頁 --- */}
+                        {activeTab === 'shopping' && (
+                            <div className="space-y-6 pt-4 text-center pb-20">
+                                <div className="bg-purple-50 p-6 rounded-[35px] border border-purple-100 text-purple-700 text-sm font-medium leading-relaxed shadow-sm">🛒 旅伴同步清單 ♡<br/><span className="text-[10px] opacity-60 text-purple-400">目前為 GitHub 預覽版，變更將存在暫存。</span></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {shoppingList.map(item => (
+                                        <div key={item.id} className="bg-white rounded-[30px] border border-purple-100 p-4 relative group shadow-sm overflow-hidden text-left">
+                                            <div className="aspect-square bg-purple-50 rounded-2xl flex items-center justify-center border border-purple-100 shadow-inner"><Icon name="image" size={32} className="text-purple-200 opacity-40" /></div>
+                                            <h4 className="font-bold text-purple-900 px-2 truncate text-sm mt-3">{item.name}</h4>
+                                            <button onClick={() => setShoppingList(shoppingList.filter(s => s.id !== item.id))} className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full text-rose-400 shadow-sm transition-opacity"><Icon name="trash-2" size={14}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => { const n = prompt('大家這次想買什麼？'); if(n) setShoppingList([...shoppingList, { id: Math.random().toString(), name: n }]); }} className="fixed bottom-24 right-6 w-16 h-16 bg-purple-600 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white z-50 active:scale-90 shadow-purple-100"><Icon name="plus" size={32} /></button>
+                            </div>
+                        )}
+
+                        {/* --- 花費分頁 --- */}
                         {activeTab === 'spending' && (
-                            <div className="space-y-6 pb-20">
+                            <div className="space-y-6">
                                 <div className="bg-slate-800 rounded-[40px] p-8 text-white shadow-xl relative overflow-hidden text-center border-b-8 border-teal-600">
                                     <div className="relative z-10 text-left">
-                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Trip Spending</p>
+                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Group Cost</p>
                                         <h2 className="text-4xl font-black italic tracking-tight mb-6 leading-none">{totalKRW.toLocaleString()} <span className="text-sm font-normal opacity-40 uppercase">KRW</span></h2>
                                         <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4">
                                             {travelers.map(t => (
@@ -273,17 +278,19 @@
                                     </div>
                                     <Icon name="coins" size={130} className="absolute -right-10 -bottom-10 opacity-5 rotate-[-15deg]" />
                                 </div>
-                                <div className="space-y-3">
+                                <div className="space-y-3 pb-20">
                                     {spendingList.map(s => (
-                                        <div key={s.id} className="bg-white rounded-[25px] p-4 border border-stone-200 shadow-sm flex items-center gap-4 relative group">
-                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-xs bg-stone-50 text-teal-600 shadow-inner`}>＄</div>
+                                        <div key={s.id} className="bg-white rounded-[30px] p-5 border border-stone-200 shadow-sm flex items-center gap-4 relative group">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xs bg-stone-50 text-teal-600 shadow-inner`}>＄</div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-center mb-0.5"><span className="text-[9px] font-bold text-stone-400 uppercase">{s.date}</span><div className="flex gap-1"><span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${s.method === '信用卡' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{s.method}</span><span className="text-[8px] font-bold px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full">{s.paidBy}</span></div></div>
+                                                <div className="flex justify-between items-center mb-0.5"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-tighter">{s.date}</span><div className="flex gap-1"><span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${s.method === '信用卡' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{s.method}</span><span className="text-[8px] font-bold px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full">{s.paidBy}</span></div></div>
                                                 <h4 className="font-bold text-slate-800 leading-tight truncate">{s.name}</h4>
                                             </div>
                                             <div className="text-right"><p className="font-black text-teal-700 leading-none">{parseFloat(s.amount).toLocaleString()}</p></div>
+                                            <button onClick={() => setSpendingList(spendingList.filter(sp => sp.id !== s.id))} className="absolute -right-2 -top-2 bg-rose-500 text-white rounded-full p-1 shadow-md"><Icon name="x" size={12}/></button>
                                         </div>
                                     ))}
+                                    {spendingList.length === 0 && <div className="py-20 text-stone-300 font-bold tracking-widest opacity-50 italic text-center">還沒有記帳紀錄唷 ♡</div>}
                                 </div>
                                 <button onClick={() => setShowModal('spending')} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white z-50 active:scale-90 shadow-teal-100"><Icon name="plus" size={32} /></button>
                             </div>
@@ -301,12 +308,11 @@
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-3">
-                                        <div className="text-center space-y-1"><p className="text-[9px] font-black text-stone-300 uppercase">KRW 韓幣</p><input type="number" value={krw} onChange={e => { setKrw(e.target.value); setTwd(e.target.value ? (e.target.value/rate).toFixed(0) : ''); }} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-teal-700 border border-transparent focus:border-teal-500 w-full text-center shadow-inner" /></div>
+                                        <div className="text-center space-y-1"><p className="text-[9px] font-black text-stone-300 uppercase">KRW 韓幣</p><input type="number" value={krw} onChange={e => handleKrwChange(e.target.value)} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-teal-700 border border-transparent focus:border-teal-500 w-full text-center shadow-inner" /></div>
                                         <div className="text-stone-300 mt-4"><Icon name="arrow-left-right" size={18} /></div>
-                                        <div className="text-center space-y-1"><p className="text-[9px] font-black text-stone-300 uppercase">TWD 台幣</p><input type="number" value={twd} onChange={e => { setTwd(e.target.value); setKrw(e.target.value ? (e.target.value*rate).toFixed(0) : ''); }} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-slate-800 border border-transparent focus:border-stone-400 w-full text-center shadow-inner" /></div>
+                                        <div className="text-center space-y-1"><p className="text-[9px] font-black text-stone-300 uppercase">TWD 台幣</p><input type="number" value={twd} onChange={e => handleTwdChange(e.target.value)} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-slate-800 border border-transparent focus:border-stone-400 w-full text-center shadow-inner" /></div>
                                     </div>
                                 </section>
-                                
                                 <section className="space-y-4">
                                     <div className="flex items-center justify-between px-2">
                                         <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 uppercase tracking-widest"><Icon name="ticket" size={18} /> 機票資訊</h3>
@@ -330,21 +336,43 @@
                     {/* Bottom Nav */}
                     <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 px-6 py-4 flex justify-between items-center z-[90] rounded-t-[40px] shadow-2xl shadow-stone-200">
                         <button onClick={() => setActiveTab('itinerary')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-stone-300'}`}><Icon name="calendar" size={20} /><span className="text-[9px] font-black uppercase">行程</span></button>
-                        <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'shopping' ? 'text-purple-600 scale-110' : 'text-stone-300'}`}><Icon name="shopping-basket" size={20} /><span className="text-[9px] font-black uppercase">購物</span></button>
-                        <button onClick={() => setActiveTab('spending')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'spending' ? 'text-teal-600 scale-110' : 'text-stone-300'}`}><Icon name="coins" size={20} /><span className="text-[9px] font-black uppercase">花費</span></button>
-                        <button onClick={() => setActiveTab('info')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'info' ? 'text-teal-700' : 'text-stone-300'}`}><Icon name="info" size={20} /><span className="text-[9px] font-black uppercase">資訊</span></button>
+                        <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'shopping' ? 'tab-active' : 'text-stone-300'}`}><Icon name="shopping-basket" size={20} /><span className="text-[9px] font-black uppercase">購物</span></button>
+                        <button onClick={() => setActiveTab('spending')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'spending' ? 'tab-active' : 'text-stone-300'}`}><Icon name="coins" size={20} /><span className="text-[9px] font-black uppercase">花費</span></button>
+                        <button onClick={() => setActiveTab('info')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'info' ? 'tab-active' : 'text-stone-300'}`}><Icon name="info" size={20} /><span className="text-[9px] font-black uppercase">資訊</span></button>
                     </nav>
 
-                    {/* --- Spending Modal --- */}
-                    {showModal === 'spending' && (
+                    {/* Modals */}
+                    {showModal === 'itinerary' && (
                         <div className="fixed inset-0 z-[100] flex items-end justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
                             <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left">
+                                <h2 className="text-xl font-bold text-slate-800 mb-6">{editingItem ? '編輯行程 ♡' : '新增行程 ♡'}</h2>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-xs font-bold text-stone-400">類別</label><select className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={itinForm.type} onChange={e => setItinForm({...itinForm, type: e.target.value})}>{Object.keys(CATEGORY_STYLES).map(k => <option key={k} value={k}>{k}</option>)}</select></div>
+                                        <div><label className="text-xs font-bold text-stone-400">時間</label><input type="time" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={itinForm.time} onChange={e => setItinForm({...itinForm, time: e.target.value})} /></div>
+                                    </div>
+                                    <input type="text" placeholder="地點名稱" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={itinForm.name} onChange={e => setItinForm({...itinForm, name: e.target.value})} />
+                                    <input type="text" placeholder="Naver 地址" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={itinForm.address} onChange={e => setItinForm({...itinForm, address: e.target.value})} />
+                                    <input type="text" placeholder="備註" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={itinForm.note} onChange={e => setItinForm({...itinForm, note: e.target.value})} />
+                                    <div className="flex gap-2 mt-4">
+                                        {editingItem && <button onClick={delItin} className="w-14 h-14 bg-rose-50 text-rose-400 rounded-2xl flex items-center justify-center border border-rose-100"><Icon name="trash-2" size={24}/></button>}
+                                        <button onClick={saveItin} className="flex-1 bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform">確認更新 ♡</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showModal === 'spending' && (
+                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4">
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
+                            <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left text-sm">
                                 <h2 className="text-xl font-bold text-slate-800 mb-6 uppercase tracking-tight">新增精準支出 ＄</h2>
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs font-bold text-stone-400 uppercase tracking-widest">日期</label><input type="date" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none" value={spendForm.date} onChange={e => setSpendForm({...spendForm, date: e.target.value})} /></div>
-                                        <div><label className="text-xs font-bold text-stone-400 uppercase tracking-widest">金額 (KRW)</label><input type="number" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none outline-none" value={spendForm.amount} onChange={e => setSpendForm({...spendForm, amount: e.target.value})} /></div>
+                                        <div><label className="text-xs font-bold text-stone-400 uppercase tracking-widest leading-none">日期</label><input type="date" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none mt-1" value={spendForm.date} onChange={e => setSpendForm({...spendForm, date: e.target.value})} /></div>
+                                        <div><label className="text-xs font-bold text-stone-400 uppercase tracking-widest leading-none">金額 (KRW)</label><input type="number" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1" value={spendForm.amount} onChange={e => setSpendForm({...spendForm, amount: e.target.value})} /></div>
                                     </div>
                                     <div className="flex gap-2">
                                         {['現金', '信用卡'].map(m => <button key={m} onClick={() => setSpendForm({...spendForm, method: m})} className={`flex-1 py-3 rounded-xl font-bold text-xs ${spendForm.method === m ? 'bg-indigo-600 text-white shadow-md' : 'bg-stone-50 text-stone-400 border'}`}>{m}</button>)}
@@ -353,8 +381,8 @@
                                         <div><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">誰墊的錢？</label><div className="flex gap-2 mt-1">{travelers.map(t => <button key={t} onClick={() => setSpendForm({...spendForm, paidBy: t})} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.paidBy === t ? 'bg-teal-600 text-white shadow-sm' : 'bg-white text-stone-400 border border-stone-100'}`}>{t}</button>)}</div></div>
                                         <div><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">參與名單？</label><div className="flex gap-2 mt-1">{travelers.map(t => <button key={t} onClick={() => { const cur = spendForm.splitBetween; setSpendForm({...spendForm, splitBetween: cur.includes(t) ? cur.filter(p => p !== t) : [...cur, t]})}} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.splitBetween.includes(t) ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' : 'bg-white text-stone-300 border border-stone-100'}`}>{t}</button>)}</div></div>
                                     </div>
-                                    <input type="text" placeholder="品項名稱 (如：烤牛腸)" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none outline-none" value={spendForm.name} onChange={e => setSpendForm({...spendForm, name: e.target.value})} />
-                                    <button onClick={() => { if(!spendForm.amount || !spendForm.name) return; addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'spending'), spendForm); setShowModal(null); }} className="w-full bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg mt-4 active:scale-95 transition-transform shadow-teal-100">同步至雲端 ＄</button>
+                                    <input type="text" placeholder="消費名稱 (如：烤牛腸)" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={spendForm.name} onChange={e => setSpendForm({...spendForm, name: e.target.value})} />
+                                    <button onClick={() => { if(!spendForm.amount || !spendForm.name) return; setSpendingList([{...spendForm, id: Math.random().toString()}, ...spendingList]); setShowModal(null); }} className="w-full bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg mt-4 active:scale-95 transition-transform shadow-teal-100">新增這筆紀錄 ＄</button>
                                 </div>
                             </div>
                         </div>
