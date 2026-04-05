@@ -23,20 +23,18 @@
 <body>
     <div id="root"></div>
 
-    <!-- 修正：使用 text/babel 並配合 data-type="module" 以支援 Firebase 導入 -->
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const { useState, useEffect, useMemo } = React;
 
-        // Firebase 配置
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drinking-trip-v1';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drinking-v3';
 
         const CATEGORY_STYLES = {
             '美食': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: 'utensils', badge: 'bg-orange-100 text-orange-800' },
@@ -46,6 +44,32 @@
             '航班': { bg: 'bg-slate-800', text: 'text-white', border: 'border-slate-900', icon: 'plane', badge: 'bg-slate-700 text-white' },
             '其他': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', icon: 'more-vertical', badge: 'bg-gray-100 text-gray-800' }
         };
+
+        // 預設行程內容
+        const DEFAULT_ITINERARY = [
+            { day: 1, type: '航班', name: '去程航班 EDQCZ3', time: '17:55', origin: 'RMQ', dest: 'ICN', note: '台中清泉崗出發', address: '台中市沙鹿區中航路一段168號' },
+            { day: 1, type: '住宿', name: 'Airbnb 入住', time: '22:30', note: 'Check-in', address: '서울 양천구 은행정로3길 3-1' },
+            { day: 2, type: '美食', name: 'Imok Smoke Dining', time: '12:30', note: '已訂位/付費', address: '서울 강남구 압구정로2길 6', status: 'booked' },
+            { day: 2, type: '購物', name: 'Money Box 換錢', time: '15:00', note: '新沙洞分店', address: '서울 강남구 도산대로11길 5' },
+            { day: 2, type: '美食', name: '먹거리양곱창 (烤牛腸)', time: '18:00', note: '在地人推薦', address: '서울 서초구 강南대로 99길 35' },
+            { day: 2, type: '美食', name: '新沙煎餅 (Sinsajeon)', time: '21:00', note: '必喝蜂巢瑪格麗酒', address: '서울 강남구 도산대로11길 18' },
+            { day: 3, type: '美食', name: '倫敦貝果博物館 (安國店)', time: '08:30', note: '可以線上取號', address: '서울 종로구 北村路4街 20', canBook: true },
+            { day: 3, type: '景點', name: '韓服體驗', time: '10:00', note: '預計3小時', address: '서울 종로구 사직로 137' },
+            { day: 3, type: '美食', name: '藍瓶咖啡 (三清店)', time: '13:00', note: '三清洞店', address: '서울 종로구 北村路 5街 76' },
+            { day: 3, type: '美食', name: '聖水洞：水芹菜烤肉', time: '16:00', note: '清爽解膩', address: '서울 성動區 연務場街 38' },
+            { day: 3, type: '美食', name: '祖傳三代馬鈴薯排骨湯', time: '21:00', note: '24小時營業', address: '서울 성동구 연무場街 45' },
+            { day: 4, type: '美食', name: '牛味學 (Woo Mi Hak)', time: '12:00', note: '可訂位/高級韓牛', address: '서울 용산區 이태院路 238', canBook: true },
+            { day: 4, type: '購物', name: '漢南洞：Mardi Mercredi', time: '14:30', note: '由最高處往下逛省力', address: '서울 용산구 이태員路 54街 58' },
+            { day: 4, type: '美食', name: '소극적 韓式居酒屋', time: '17:00', note: '漢南本店', address: '서울 용산區 大使館路 31街 7' },
+            { day: 4, type: '美食', name: '山清炭火烤肉 (麻谷本店)', time: '20:00', note: '可線上取號', address: '서울 강서구 마곡중앙8路 85', canBook: true },
+            { day: 5, type: '購物', name: '汝矣島現代百貨', time: '10:30', address: '서울 영등포구 여의대로 108' },
+            { day: 5, type: '美食', name: '風川鰻魚', time: '13:00', address: '서울 中區 乙支路 99-1' },
+            { day: 5, type: '購物', name: '樂天百貨 (明洞店)', time: '16:00', note: '明洞購物', address: '서울 中區 南大門路 81' },
+            { day: 5, type: '景點', name: '明洞醫美預約', time: '17:00', address: '서울 中區 明洞7街 21', status: 'booked' },
+            { day: 5, type: '美食', name: '烏達里家 醬蟹', time: '20:00', address: '서울 中區 明洞8나路 28' },
+            { day: 6, type: '購物', name: '望遠市場', time: '10:00', address: '서울 마포구 포은로8길 14' },
+            { day: 6, type: '航班', name: '回程航班 KE2031', time: '14:45', origin: 'ICN', dest: 'RMQ', note: '回台中清泉崗' }
+        ];
 
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => { if (window.lucide) lucide.createIcons(); }, [name]);
@@ -67,7 +91,7 @@
             const [showModal, setShowModal] = useState(null);
             const [editingItem, setEditingItem] = useState(null);
             const [itinForm, setItinForm] = useState({ type: '美食', name: '', time: '12:00', address: '', note: '' });
-            const [spendForm, setSpendForm] = useState({ name: '', amount: '', method: '現金', paidBy: '任', splitBetween: ['任', '晉', '沛'], date: new Date().toISOString().split('T')[0] });
+            const [spendForm, setSpendForm] = useState({ name: '', amount: '', method: '現金', paidBy: '任', splitBetween: ['任', '晉', '沛'], date: new Date().toISOString().split('T')[0], category: '美食' });
             const [showCopyToast, setShowCopyToast] = useState(false);
 
             useEffect(() => {
@@ -85,7 +109,21 @@
 
             useEffect(() => {
                 if (!user) return;
-                const unsubItin = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'itineraries'), (snap) => {
+                
+                const itinRef = collection(db, 'artifacts', appId, 'public', 'data', 'itineraries');
+                
+                // 行程資料初始化與監聽
+                const unsubItin = onSnapshot(itinRef, async (snap) => {
+                    if (snap.empty) {
+                        // 如果雲端沒資料，自動寫入預設行程
+                        const batch = writeBatch(db);
+                        DEFAULT_ITINERARY.forEach(item => {
+                            const newDoc = doc(itinRef);
+                            batch.set(newDoc, item);
+                        });
+                        await batch.commit();
+                        return;
+                    }
                     const data = {};
                     snap.forEach(doc => {
                         const item = { ...doc.data(), id: doc.id };
@@ -95,12 +133,15 @@
                     Object.keys(data).forEach(d => data[d].sort((a,b) => a.time.localeCompare(b.time)));
                     setItineraries(data);
                 });
+
                 const unsubSpend = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'spending'), (snap) => {
                     setSpendingList(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })).sort((a,b) => b.date.localeCompare(a.date)));
                 });
+
                 const unsubShop = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'shopping'), (snap) => {
                     setShoppingList(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
                 });
+
                 return () => { unsubItin(); unsubSpend(); unsubShop(); };
             }, [user]);
 
@@ -112,44 +153,52 @@
             };
 
             const delItem = async (col, id) => {
-                if(!confirm('確定要移除這個項目嗎？這將會同步從所有人的手機中消失。')) return;
+                if(!confirm('確定要移除嗎？這將同步從所有人的手機消失。')) return;
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
                 setShowModal(null); setEditingItem(null);
             };
 
-            const copyToClipboard = (txt) => {
-                navigator.clipboard.writeText(txt);
+            const copyAddr = (txt) => {
+                const el = document.createElement('textarea');
+                el.value = txt;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
                 setShowCopyToast(true);
                 setTimeout(() => setShowCopyToast(false), 2000);
             };
 
-            const summary = useMemo(() => {
+            const balances = useMemo(() => {
                 const res = {};
-                travelers.forEach(t => res[t] = { paid: 0, cost: 0 });
+                travelers.forEach(t => res[t] = { paid: 0, cost: 0, final: 0 });
                 spendingList.forEach(s => {
                     const amt = parseFloat(s.amount) || 0;
                     if (res[s.paidBy]) res[s.paidBy].paid += amt;
-                    const share = amt / (s.splitBetween?.length || 1);
-                    (s.splitBetween || []).forEach(p => { if (res[p]) res[p].cost += share; });
+                    const participants = s.splitBetween || [];
+                    if (participants.length > 0) {
+                        const share = amt / participants.length;
+                        participants.forEach(p => { if (res[p]) res[p].cost += share; });
+                    }
                 });
+                travelers.forEach(t => res[t].final = res[t].paid - res[t].cost);
                 return res;
             }, [spendingList, travelers]);
 
             const totalKRW = spendingList.reduce((a, b) => a + (parseFloat(b.amount) || 0), 0);
-
             const dates = [{d:'Thu',n:'16'},{d:'Fri',n:'17'},{d:'Sat',n:'18'},{d:'Sun',n:'19'},{d:'Mon',n:'20'},{d:'Tue',n:'21'}];
 
-            if (!user) return <div className="h-screen flex items-center justify-center text-teal-600 font-black bg-white">正在連線至首爾雲端...</div>;
+            if (!user) return <div className="h-screen flex items-center justify-center text-teal-600 font-black bg-white italic">正在連接首爾喝掛之旅雲端...</div>;
 
             return (
                 <div className="min-h-screen relative pb-32">
                     {[...Array(6)].map((_, i) => (
                         <div key={i} className="sakura" style={{ left: `${Math.random() * 100}%`, animationDuration: `${Math.random() * 10 + 10}s`, animationDelay: `${i*2}s` }}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="#14b8a6" fillOpacity="0.1"><path d="M12 21.5C12 21.5 19 16 21 11C23 6 18 2 13 5C12 5.5 12 6 12 6C12 6 12 5.5 11 5C6 2 1 6 3 11C5 16 12 21.5 12 21.5Z" /></svg>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="#14b8a6" fillOpacity="0.1"><path d="M12 21.5C12 21.5 19 16 21 11C23 6 18 2 13 5C12 5.5 12 6 12 6C12 6 12 5.5 11 5C6 2 1 6 3 11C5 16 12 21.5 12 21.5Z" /></svg>
                         </div>
                     ))}
 
-                    {showCopyToast && <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/90 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl backdrop-blur-md">地址已複製！</div>}
+                    {showCopyToast && <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/90 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl backdrop-blur-md">地址已複製成功！</div>}
 
                     <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-40 rounded-b-[40px] shadow-sm border-b border-stone-100">
                         <div className="flex justify-between items-center mb-6">
@@ -157,10 +206,10 @@
                                 <div className="bg-teal-700 p-2.5 rounded-2xl text-white shadow-lg"><Icon name="beer" size={24} /></div>
                                 <div className="text-left leading-tight">
                                     <h1 className="text-xl font-black text-slate-800 tracking-tight">首爾喝掛之旅</h1>
-                                    <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">友誼大考驗</p>
+                                    <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest mt-1">友誼大考驗</p>
                                 </div>
                             </div>
-                            {activeTab === 'itinerary' && <div className="bg-teal-50 px-3 py-1.5 rounded-full text-[10px] font-black text-teal-700 uppercase shadow-inner">Day {activeDay}</div>}
+                            {activeTab === 'itinerary' && <div className="bg-teal-50 px-3 py-1.5 rounded-full text-[10px] font-bold text-teal-700 uppercase">Day {activeDay}</div>}
                         </div>
                         {activeTab === 'itinerary' && (
                             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 px-1">
@@ -206,13 +255,13 @@
                                                                 <button onClick={() => { setEditingItem(item); setItinForm(item); setShowModal('itinerary'); }} className="text-stone-300 active:scale-95"><Icon name="more-vertical" size={18}/></button>
                                                             </div>
                                                             <h4 className="font-black text-slate-800 text-lg leading-tight mt-1">{item.name}</h4>
-                                                            <p className="text-xs text-stone-400 mt-1 italic leading-relaxed">✿ {item.note || 'Enjoy Seoul'}</p>
+                                                            <p className="text-xs text-stone-400 mt-1 italic">✿ {item.note || 'Enjoy Seoul'}</p>
                                                         </div>
                                                     </div>
                                                     {item.address && (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(item.address)}`)} className="flex-1 py-3 bg-teal-700 text-white font-bold text-xs rounded-2xl shadow-sm active:bg-teal-800 transition-colors">Naver Map</button>
-                                                            <button onClick={() => copyToClipboard(item.address)} className="px-5 py-3 bg-stone-50 text-stone-600 font-bold text-xs rounded-2xl border border-stone-100 active:bg-stone-100">複製地址</button>
+                                                            <button onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(item.address)}`)} className="flex-1 py-3 bg-teal-700 text-white font-bold text-xs rounded-2xl shadow-sm active:bg-teal-800">Naver Map</button>
+                                                            <button onClick={() => copyAddr(item.address)} className="px-5 py-3 bg-stone-50 text-stone-600 font-bold text-xs rounded-2xl border border-stone-100 active:bg-stone-100">複製地址</button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -220,7 +269,7 @@
                                         );
                                     })}
                                 </div>
-                                <button onClick={() => { setEditingItem(null); setItinForm({ type: '美食', name: '', time: '12:00', address: '', note: '' }); setShowModal('itinerary'); }} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white transition-transform active:scale-90 z-50"><Icon name="plus" size={32} /></button>
+                                <button onClick={() => { setEditingItem(null); setItinForm({ type: '美食', name: '', time: '12:00', address: '', note: '' }); setShowModal('itinerary'); }} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white transition-transform active:scale-90 z-50 shadow-teal-200"><Icon name="plus" size={32} /></button>
                             </div>
                         )}
 
@@ -229,14 +278,14 @@
                                 <div className="bg-purple-50 p-6 rounded-[35px] border border-purple-100 text-purple-700 text-sm font-medium leading-relaxed shadow-sm">🛒 旅伴同步清單 ♡<br/><span className="text-[10px] opacity-60">拍下商品照或截圖，血拚更有效率！</span></div>
                                 <div className="grid grid-cols-2 gap-4">
                                     {shoppingList.map(item => (
-                                        <div key={item.id} className="bg-white rounded-[30px] border border-purple-100 p-4 relative group shadow-sm">
+                                        <div key={item.id} className="bg-white rounded-[30px] border border-purple-100 p-4 relative overflow-hidden group shadow-sm">
                                             <div className="aspect-square bg-purple-50 rounded-2xl flex items-center justify-center border border-purple-100 shadow-inner"><Icon name="image" size={32} className="text-purple-200 opacity-40" /></div>
                                             <h4 className="font-bold text-purple-900 px-2 truncate text-sm mt-3">{item.name}</h4>
-                                            <button onClick={() => handleDelete('shopping', item.id)} className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full text-rose-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="trash-2" size={14}/></button>
+                                            <button onClick={() => delItem('shopping', item.id)} className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full text-rose-400 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="trash-2" size={14}/></button>
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={() => { const n = prompt('大家這次想買什麼？'); if(n) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'shopping'), { name: n }); }} className="fixed bottom-24 right-6 w-16 h-16 bg-purple-600 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white z-50 active:scale-90 shadow-purple-100"><Icon name="plus" size={32} /></button>
+                                <button onClick={() => { const n = prompt('想買什麼呢？'); if(n) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'shopping'), { name: n }); }} className="fixed bottom-24 right-6 w-16 h-16 bg-purple-600 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white z-50 active:scale-90 shadow-purple-100"><Icon name="plus" size={32} /></button>
                             </div>
                         )}
 
@@ -244,16 +293,17 @@
                             <div className="space-y-6">
                                 <div className="bg-slate-800 rounded-[40px] p-8 text-white shadow-xl relative overflow-hidden text-center border-b-8 border-teal-600">
                                     <div className="relative z-10 text-left">
-                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Trip Spending</p>
-                                        <h2 className="text-4xl font-black italic tracking-tight leading-none mb-4">{totalKRW.toLocaleString()} <span className="text-sm font-normal opacity-40 uppercase">KRW</span></h2>
-                                        <div className="grid grid-cols-2 border-t border-white/10 pt-4 gap-4">
-                                            <div><p className="text-[9px] text-stone-400 font-bold uppercase tracking-tighter">旅伴應付 (均分)</p><p className="text-lg font-black text-teal-400">{(totalKRW / 3).toFixed(0).toLocaleString()}</p></div>
-                                            <div className="text-right">
-                                                <p className="text-[9px] text-stone-400 font-bold uppercase tracking-tighter">任 的結餘</p>
-                                                <p className={`text-lg font-black ${summary['任']?.paid - summary['任']?.cost >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                    {((summary['任']?.paid - summary['任']?.cost || 0)).toFixed(0).toLocaleString()}
-                                                </p>
-                                            </div>
+                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Group Cost</p>
+                                        <h2 className="text-4xl font-black italic tracking-tight mb-6">{totalKRW.toLocaleString()} <span className="text-sm font-normal opacity-40">KRW</span></h2>
+                                        <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4">
+                                            {travelers.map(t => (
+                                                <div key={t} className="text-center">
+                                                    <p className="text-[9px] text-stone-400 font-bold uppercase mb-1">{t}</p>
+                                                    <p className={`text-xs font-black ${balances[t].final >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {balances[t].final >= 0 ? '+' : ''}{balances[t].final.toFixed(0).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                     <Icon name="coins" size={130} className="absolute -right-10 -bottom-10 opacity-5 rotate-[-15deg]" />
@@ -267,11 +317,11 @@
                                                 <h4 className="font-bold text-slate-800 leading-tight truncate">{s.name}</h4>
                                             </div>
                                             <div className="text-right"><p className="font-black text-teal-700 leading-none">{parseFloat(s.amount).toLocaleString()}</p></div>
-                                            <button onClick={() => handleDelete('spending', s.id)} className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 bg-rose-500 text-white rounded-full p-1 shadow-md"><Icon name="x" size={12}/></button>
+                                            <button onClick={() => delItem('spending', s.id)} className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 bg-rose-500 text-white rounded-full p-1 shadow-md transition-opacity"><Icon name="x" size={12}/></button>
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={() => setShowModal('spending')} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white z-50 active:scale-90"><Icon name="plus" size={32} /></button>
+                                <button onClick={() => setShowModal('spending')} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white z-50 active:scale-90 shadow-teal-100"><Icon name="plus" size={32} /></button>
                             </div>
                         )}
 
@@ -279,7 +329,7 @@
                             <div className="space-y-6 pb-20">
                                 <section className="bg-white rounded-[35px] p-6 shadow-sm border border-stone-200 space-y-6">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700"><Icon name="calculator" /> 雙向匯率計算機</h3>
+                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700"><Icon name="calculator" /> 雙向匯率計算</h3>
                                         <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-full border border-stone-100 shadow-inner">
                                             <span className="text-[10px] font-bold text-stone-400 uppercase">1 TWD = </span>
                                             <input type="number" step="0.1" value={rate} onChange={e => setRate(parseFloat(e.target.value) || 1)} className="w-12 bg-transparent text-center font-black text-teal-600 outline-none" />
@@ -292,39 +342,29 @@
                                         <div className="text-center space-y-1"><p className="text-[10px] font-black text-stone-400 uppercase">TWD 台幣</p><input type="number" value={twd} onChange={e => { setTwd(e.target.value); setKrw(e.target.value ? (e.target.value*rate).toFixed(0) : ''); }} className="bg-stone-50 p-4 rounded-[20px] outline-none font-black text-xl text-slate-800 border border-transparent focus:border-stone-400 w-full text-center shadow-inner" /></div>
                                     </div>
                                 </section>
-                                
                                 <section className="space-y-4">
                                     <div className="flex items-center justify-between px-2">
-                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 uppercase tracking-widest"><Icon name="ticket" size={18} /> 機票資訊 (RMQ ↔ ICN)</h3>
+                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 uppercase tracking-widest"><Icon name="ticket" size={18} /> 機票資訊 (台中 RMQ)</h3>
                                         <div className="bg-teal-50 px-3 py-1 rounded-full text-teal-600 text-[10px] font-bold flex items-center gap-1 shadow-sm"><Icon name="timer" size={12}/>總飛行: 4h 40m</div>
                                     </div>
-                                    <div className="bg-white rounded-[30px] shadow-sm border border-stone-100 border-l-[12px] border-l-teal-600 p-6 space-y-6 overflow-hidden relative">
+                                    <div className="bg-white rounded-[30px] shadow-sm border border-stone-100 border-l-[12px] border-l-teal-600 p-6 space-y-6 overflow-hidden">
                                         <div className="flex justify-between items-center border-b border-stone-50 pb-4">
-                                            <div><span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Flight 04/16</span><p className="font-black text-teal-600">RMQ 17:55 → ICN 21:35</p></div>
-                                            <div className="bg-teal-50 px-2 py-0.5 rounded text-[10px] font-bold text-teal-600">2h 40m</div>
+                                            <div><span className="text-[9px] font-bold text-stone-400 uppercase">EDQCZ3</span><p className="text-xs font-black text-teal-600 mt-0.5">04/16 (THU)</p></div>
+                                            <div className="text-right"><div><h2 className="text-lg font-black text-slate-700 uppercase tracking-tight">RMQ → ICN</h2><p className="text-[9px] font-bold text-stone-400 mt-0.5 uppercase tracking-tighter">17:55 - 21:35</p></div></div>
                                         </div>
-                                        <div className="flex justify-between items-center opacity-80">
-                                            <div><span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Flight 04/21</span><p className="font-black text-emerald-600">ICN 14:45 → RMQ 16:45</p></div>
-                                            <div className="bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-bold text-emerald-600">2h 00m</div>
+                                        <div className="flex justify-between items-center pt-2 opacity-80">
+                                            <div><span className="text-[9px] font-bold text-stone-400 uppercase">KE2031</span><p className="text-xs font-black text-emerald-600 mt-0.5 uppercase">04/21 (TUE)</p></div>
+                                            <div className="text-right"><div><h2 className="text-lg font-black text-slate-700 uppercase tracking-tight">ICN → RMQ</h2><p className="text-[9px] font-bold text-stone-400 mt-0.5 uppercase tracking-tighter">14:45 - 16:45</p></div></div>
                                         </div>
                                     </div>
-                                </section>
-
-                                <section className="bg-white rounded-[35px] p-6 shadow-sm border border-stone-200">
-                                     <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 mb-4"><Icon name="users" size={18}/> 旅伴管理</h3>
-                                     <div className="flex flex-wrap gap-2">
-                                        {travelers.map(t => (
-                                            <span key={t} className="bg-stone-50 text-stone-600 px-5 py-2 rounded-full text-xs font-bold border border-stone-100 shadow-inner">{t}</span>
-                                        ))}
-                                     </div>
                                 </section>
                             </div>
                         )}
                     </main>
 
                     {/* Bottom Nav */}
-                    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 px-6 py-4 flex justify-between items-center z-[90] rounded-t-[45px] shadow-2xl">
-                        <button onClick={() => setActiveTab('itinerary')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-stone-300'}`}><Icon name="calendar" size={22} fill={activeTab === 'itinerary' ? 'currentColor' : 'none'} /><span className="text-[9px] font-black uppercase tracking-tighter">行程</span></button>
+                    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 px-6 py-4 flex justify-between items-center z-[90] rounded-t-[45px] shadow-2xl shadow-stone-200">
+                        <button onClick={() => setActiveTab('itinerary')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-stone-300'}`}><Icon name="calendar" size={22} /><span className="text-[9px] font-black uppercase tracking-tighter">行程</span></button>
                         <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'shopping' ? 'text-purple-600 scale-110' : 'text-stone-300'}`}><Icon name="shopping-basket" size={22} /><span className="text-[9px] font-black uppercase tracking-tighter">購物</span></button>
                         <button onClick={() => setActiveTab('spending')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'spending' ? 'text-teal-600' : 'text-stone-300'}`}><Icon name="coins" size={22} /><span className="text-[9px] font-black uppercase tracking-tighter">花費</span></button>
                         <button onClick={() => setActiveTab('info')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'info' ? 'text-teal-700' : 'text-stone-300'}`}><Icon name="info" size={22} /><span className="text-[9px] font-black uppercase tracking-tighter">資訊</span></button>
@@ -335,17 +375,17 @@
                         <div className="fixed inset-0 z-[100] flex items-end justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
                             <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left">
-                                <h2 className="text-xl font-bold text-slate-800 mb-6">{editingItem ? '編輯行程' : '新增行程'}</h2>
+                                <h2 className="text-xl font-bold text-slate-800 mb-6">{editingItem ? '編輯行程 ♡' : '新增行程 ♡'}</h2>
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs font-bold text-stone-400">類別</label><select className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={itinForm.type} onChange={e => setItinForm({...itinForm, type: e.target.value})}>{Object.keys(CATEGORY_STYLES).map(k => <option key={k} value={k}>{k}</option>)}</select></div>
+                                        <div><label className="text-xs font-bold text-stone-400">類別</label><select className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={itinForm.type} onChange={e => setItinForm({...itinForm, type: e.target.value})}>{Object.keys(CATEGORY_STYLES).map(k => <option key={k}>{k}</option>)}</select></div>
                                         <div><label className="text-xs font-bold text-stone-400">時間</label><input type="time" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={itinForm.time} onChange={e => setItinForm({...itinForm, time: e.target.value})} /></div>
                                     </div>
                                     <input type="text" placeholder="地點名稱" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={itinForm.name} onChange={e => setItinForm({...itinForm, name: e.target.value})} />
-                                    <input type="text" placeholder="地址" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={itinForm.address} onChange={e => setItinForm({...itinForm, address: e.target.value})} />
+                                    <input type="text" placeholder="Naver 地址" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={itinForm.address} onChange={e => setItinForm({...itinForm, address: e.target.value})} />
                                     <div className="flex gap-2">
                                         {editingItem && <button onClick={() => delItem('itineraries', editingItem.id)} className="w-14 h-14 bg-rose-50 text-rose-400 rounded-2xl flex items-center justify-center border border-rose-100"><Icon name="trash-2" size={24}/></button>}
-                                        <button onClick={handleSaveItin} className="flex-1 bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg">確認儲存</button>
+                                        <button onClick={handleSaveItin} className="flex-1 bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform">確認同步 ♡</button>
                                     </div>
                                 </div>
                             </div>
@@ -356,21 +396,21 @@
                         <div className="fixed inset-0 z-[100] flex items-end justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
                             <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left">
-                                <h2 className="text-xl font-bold text-slate-800 mb-6">新增開支 ＄</h2>
-                                <div className="space-y-4 pb-4">
+                                <h2 className="text-xl font-bold text-slate-800 mb-6 uppercase tracking-tight">新增精準支出 ＄</h2>
+                                <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs font-bold text-stone-400">日期</label><input type="date" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={spendForm.date} onChange={e => setSpendForm({...spendForm, date: e.target.value})} /></div>
-                                        <div><label className="text-xs font-bold text-stone-400">金額 (KRW)</label><input type="number" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={spendForm.amount} onChange={e => setSpendForm({...spendForm, amount: e.target.value})} /></div>
+                                        <div><label className="text-xs font-bold text-stone-400 uppercase">日期</label><input type="date" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={spendForm.date} onChange={e => setSpendForm({...spendForm, date: e.target.value})} /></div>
+                                        <div><label className="text-xs font-bold text-stone-400 uppercase">金額 (KRW)</label><input type="number" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={spendForm.amount} onChange={e => setSpendForm({...spendForm, amount: e.target.value})} /></div>
                                     </div>
                                     <div className="flex gap-2">
                                         {['現金', '信用卡'].map(m => <button key={m} onClick={() => setSpendForm({...spendForm, method: m})} className={`flex-1 py-3 rounded-xl font-bold text-xs ${spendForm.method === m ? 'bg-indigo-600 text-white shadow-md' : 'bg-stone-50 text-stone-400 border'}`}>{m}</button>)}
                                     </div>
-                                    <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 space-y-3">
-                                        <div><label className="text-[10px] font-bold text-stone-400 uppercase">付款者</label><div className="flex gap-2 mt-1">{travelers.map(t => <button key={t} onClick={() => setSpendForm({...spendForm, paidBy: t})} className={`px-4 py-1.5 rounded-full text-xs font-bold ${spendForm.paidBy === t ? 'bg-teal-600 text-white' : 'bg-white text-stone-400 border'}`}>{t}</button>)}</div></div>
-                                        <div><label className="text-[10px] font-bold text-stone-400 uppercase">分攤者</label><div className="flex gap-2 mt-1">{travelers.map(t => <button key={t} onClick={() => { const cur = spendForm.splitBetween; setSpendForm({...spendForm, splitBetween: cur.includes(t) ? cur.filter(p => p !== t) : [...cur, t]})}} className={`px-4 py-1.5 rounded-full text-xs font-bold ${spendForm.splitBetween.includes(t) ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-stone-300 border'}`}>{t}</button>)}</div></div>
+                                    <div className="bg-stone-50 p-4 rounded-3xl border border-stone-100 space-y-3">
+                                        <div><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">誰買單的？</label><div className="flex gap-2 mt-1">{travelers.map(t => <button key={t} onClick={() => setSpendForm({...spendForm, paidBy: t})} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.paidBy === t ? 'bg-teal-600 text-white shadow-sm' : 'bg-white text-stone-400 border'}`}>{t}</button>)}</div></div>
+                                        <div><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">誰要平分？</label><div className="flex gap-2 mt-1">{travelers.map(t => <button key={t} onClick={() => { const cur = spendForm.splitBetween; setSpendForm({...spendForm, splitBetween: cur.includes(t) ? cur.filter(p => p !== t) : [...cur, t]})}} className={`px-4 py-1.5 rounded-full text-xs font-bold ${spendForm.splitBetween.includes(t) ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' : 'bg-white text-stone-300 border'}`}>{t}</button>)}</div></div>
                                     </div>
-                                    <input type="text" placeholder="品項 (如：炸雞)" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none" value={spendForm.name} onChange={e => setSpendForm({...spendForm, name: e.target.value})} />
-                                    <button onClick={async () => { if(!spendForm.amount || !spendForm.name) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'spending'), spendForm); setShowModal(null); }} className="w-full bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg mt-4">同步開支</button>
+                                    <input type="text" placeholder="品項名稱 (如：炸雞)" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none" value={spendForm.name} onChange={e => setSpendForm({...spendForm, name: e.target.value})} />
+                                    <button onClick={async () => { if(!spendForm.amount || !spendForm.name) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'spending'), spendForm); setShowModal(null); }} className="w-full bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg mt-4 shadow-teal-100">同步至雲端 ＄</button>
                                 </div>
                             </div>
                         </div>
