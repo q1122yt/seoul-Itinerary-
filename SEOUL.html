@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>首爾喝掛之旅 - 友誼大考驗</title>
-    <!-- 基礎框架載入 -->
+    <!-- 核心框架 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Firebase 穩定版載入 -->
+    <!-- Firebase 穩定版 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -26,8 +26,8 @@
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .card-shadow { box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05); }
         .img-preview { object-fit: cover; width: 100%; height: 100%; border-radius: 1.5rem; }
-        .modal-up { animation: slideUp 0.2s ease-out; }
-        @keyframes slideUp { from { transform: translateY(20%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-up { animation: slideUp 0.25s ease-out forwards; }
+        @keyframes slideUp { from { transform: translateY(50%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -36,10 +36,10 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- 核心行程預設資料 ---
+        // --- 靜態預設資料 (校正版) ---
         const DEFAULT_ITINERARY = [
             { day: 1, type: '航班', name: '去程航班 KE2032', time: '17:55', note: '台中清泉崗 17:55 出發', address: 'RMQ' },
-            { day: 1, type: '住宿', name: 'Airbnb 入住', time: '22:30', note: '民宿 Check-in', address: '서울 양천구 은행정로3길 3-1' },
+            { day: 1, type: '住宿', name: 'Airbnb 入住', time: '22:30', note: '首爾民宿 Check-in', address: '서울 양천구 은행정로3길 3-1' },
             { day: 2, type: '美食', name: 'Imok Smoke Dining', time: '12:30', note: '已訂位/已付費', address: '서울 강남구 압구정로2길 6', status: 'booked' },
             { day: 2, type: '購物', name: 'Money Box 換錢', time: '15:00', note: '新沙洞分店', address: '서울 강남구 도산대로11길 5' },
             { day: 2, type: '美食', name: '먹거리양곱창 (烤牛腸)', time: '18:00', note: '在地人推薦', address: '서울 서초구 강남대로99길 35' },
@@ -49,10 +49,10 @@
             { day: 3, type: '美食', name: '藍瓶咖啡 (三清店)', time: '13:00', note: '三清洞店', address: '서울 종로구 북촌로5길 76' },
             { day: 3, type: '美食', name: '聖水洞：水芹菜烤肉', time: '16:00', note: '清爽解膩', address: '서울 성동구 연무장길 38' },
             { day: 4, type: '美食', name: '牛味學 (Woo Mi Hak)', time: '12:00', note: '可訂位/高級韓牛', address: '서울 용산구 이태원로 238', canBook: true },
-            { day: 4, type: '購物', name: '漢南洞：Mardi Mercredi', time: '14:30', note: '下坡逛省力', address: '서울 용산구 이태원로54길 58' },
+            { day: 4, type: '購物', name: '漢南洞：Mardi Mercredi', time: '14:30', note: '由高處往低處逛', address: '서울 용산구 이태원로54길 58' },
             { day: 4, type: '美食', name: '山清炭火烤肉 (麻谷本店)', time: '20:00', note: '可線上取號', address: '서울 강서구 마곡중앙8로 85', canBook: true },
             { day: 5, type: '購物', name: '汝矣島現代百貨', time: '10:30', address: '서울 영등포구 여의대로 108' },
-            { day: 5, type: '購物', name: '樂天百貨 (明洞店)', time: '16:00', note: '明洞購物', address: '서울 중구 남대문로 81' },
+            { day: 5, type: '購物', name: '樂天百貨 (明洞店)', time: '16:00', note: '明洞總店', address: '서울 중구 남대문로 81' },
             { day: 5, type: '景點', name: '明洞醫美預約', time: '17:00', address: '서울 중구 명동7길 21', status: 'booked' },
             { day: 5, type: '美食', name: '烏達里家 醬蟹', time: '20:00', address: '서울 중구 명동8나길 28' },
             { day: 6, type: '購物', name: '望遠市場', time: '10:00', address: '서울 마포구 포은로8길 14' },
@@ -78,11 +78,14 @@
             const [activeTab, setActiveTab] = useState('itinerary');
             const [activeDay, setActiveDay] = useState(1);
             
-            // 初始化數據狀態
-            const groupedInit = {};
-            DEFAULT_ITINERARY.forEach(i => { if(!groupedInit[i.day]) groupedInit[i.day] = []; groupedInit[i.day].push({...i, id: Math.random().toString()}); });
-            
-            const [itineraries, setItineraries] = useState(groupedInit);
+            // 行程狀態初始化
+            const getInitialItin = () => {
+                const grouped = {};
+                DEFAULT_ITINERARY.forEach(i => { if(!grouped[i.day]) grouped[i.day] = []; grouped[i.day].push({...i, id: Math.random().toString()}); });
+                return grouped;
+            };
+
+            const [itineraries, setItineraries] = useState(getInitialItin());
             const [spendingList, setSpendingList] = useState([]);
             const [shoppingList, setShoppingList] = useState([]);
             const [travelers] = useState(['任', '晉', '沛']);
@@ -100,20 +103,19 @@
 
             useEffect(() => {
                 const configStr = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drink-final-v10-fixed-shopping';
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-trip-v10-final-fix';
 
-                if (!configStr) {
-                    setUser({ uid: 'local' });
-                    // 從 Local Storage 讀取
-                    const s_it = localStorage.getItem('local_it_v2');
-                    const s_sp = localStorage.getItem('local_sp_v2');
-                    const s_sh = localStorage.getItem('local_sh_v2');
-                    if(s_it) setItineraries(JSON.parse(s_it));
-                    if(s_sp) setSpendingList(JSON.parse(s_sp));
-                    if(s_sh) setShoppingList(JSON.parse(s_sh));
-                    return;
-                }
+                // --- GitHub / 離線模式優先讀取 ---
+                const s_it = localStorage.getItem('s_it_v3');
+                const s_sp = localStorage.getItem('s_sp_v3');
+                const s_sh = localStorage.getItem('s_sh_v3');
+                if(s_it) setItineraries(JSON.parse(s_it));
+                if(s_sp) setSpendingList(JSON.parse(s_sp));
+                if(s_sh) setShoppingList(JSON.parse(s_sh));
 
+                if (!configStr) { setUser({ uid: 'local' }); return; }
+
+                // --- 雲端模式 ---
                 if (!firebase.apps.length) firebase.initializeApp(configStr);
                 const db = firebase.firestore();
                 firebase.auth().signInAnonymously().then(u => {
@@ -138,20 +140,21 @@
                 });
             }, []);
 
-            // 操作：新增購物與照片 (修正處)
+            // --- 購物新增功能 (徹底修復點擊無反應問題) ---
             const handleAddShopping = async () => {
                 if(!shoppingForm.name) return;
                 const newItem = { ...shoppingForm, id: Math.random().toString() };
                 
                 if (user.uid === 'local') {
-                    const nl = [newItem, ...shoppingList];
-                    setShoppingList(nl);
-                    localStorage.setItem('local_sh_v2', JSON.stringify(nl));
+                    const newList = [newItem, ...shoppingList];
+                    setShoppingList(newList);
+                    localStorage.setItem('s_sh_v3', JSON.stringify(newList));
                 } else {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drink-final-v10-fixed-shopping';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-trip-v10-final-fix';
                     await firebase.firestore().collection('artifacts').doc(appId).collection('public').doc('data').collection('shopping').add(shoppingForm);
                 }
-                setShowModal(null); setShoppingForm({ name: '', img: null });
+                setShowModal(null); 
+                setShoppingForm({ name: '', img: null });
             };
 
             const handleSaveItin = async () => {
@@ -163,9 +166,10 @@
                     else { dayData.push(newItem); }
                     dayData.sort((a,b) => a.time.localeCompare(b.time));
                     const ni = { ...itineraries, [activeDay]: dayData };
-                    setItineraries(ni); localStorage.setItem('local_it_v2', JSON.stringify(ni));
+                    setItineraries(ni);
+                    localStorage.setItem('s_it_v3', JSON.stringify(ni));
                 } else {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drink-final-v10-fixed-shopping';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-trip-v10-final-fix';
                     const ref = firebase.firestore().collection('artifacts').doc(appId).collection('public').doc('data').collection('itineraries');
                     if (editingItem) await ref.doc(editingItem.id).update({ ...itinForm, day: activeDay });
                     else await ref.add({ ...itinForm, day: activeDay });
@@ -177,11 +181,18 @@
                 if (!showDeleteConfirm) return;
                 const { col, id } = showDeleteConfirm;
                 if (user.uid === 'local') {
-                    if (col === 'itineraries') { const ni = { ...itineraries, [activeDay]: itineraries[activeDay].filter(i => i.id !== id) }; setItineraries(ni); localStorage.setItem('local_it_v2', JSON.stringify(ni)); }
-                    else if (col === 'shopping') { const nl = shoppingList.filter(s => s.id !== id); setShoppingList(nl); localStorage.setItem('local_sh_v2', JSON.stringify(nl)); }
-                    else if (col === 'spending') { const nl = spendingList.filter(s => s.id !== id); setSpendingList(nl); localStorage.setItem('local_sp_v2', JSON.stringify(nl)); }
+                    if (col === 'itineraries') { 
+                        const ni = { ...itineraries, [activeDay]: itineraries[activeDay].filter(i => i.id !== id) }; 
+                        setItineraries(ni); localStorage.setItem('s_it_v3', JSON.stringify(ni)); 
+                    } else if (col === 'shopping') { 
+                        const nl = shoppingList.filter(s => s.id !== id); 
+                        setShoppingList(nl); localStorage.setItem('s_sh_v3', JSON.stringify(nl)); 
+                    } else if (col === 'spending') { 
+                        const nl = spendingList.filter(s => s.id !== id); 
+                        setSpendingList(nl); localStorage.setItem('s_sp_v3', JSON.stringify(nl)); 
+                    }
                 } else {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drink-final-v10-fixed-shopping';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-trip-v10-final-fix';
                     await firebase.firestore().collection('artifacts').doc(appId).collection('public').doc('data').collection(col).doc(id).delete();
                 }
                 setShowDeleteConfirm(null); setShowModal(null); setEditingItem(null);
@@ -189,6 +200,7 @@
 
             const navigateToNaver = (address) => {
                 if (!address || address === 'RMQ' || address === 'ICN') return;
+                // 過濾掉地址內所有的非韓文字/非數字內容
                 const clean = address.replace(/[^\uAC00-\uD7A30-9\s-]/g, '').trim();
                 window.open(`https://map.naver.com/v5/search/${encodeURIComponent(clean)}`, '_blank');
             };
@@ -221,19 +233,19 @@
 
                     {showCopyToast && <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-2 rounded-full text-xs font-bold shadow-2xl">地址已複製！</div>}
 
-                    <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-40 rounded-b-[40px] shadow-sm border-b border-stone-100">
+                    <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-40 rounded-b-[40px] shadow-sm border-b border-stone-100 text-left">
                         <div className="flex justify-between items-center mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="bg-teal-700 p-2.5 rounded-2xl text-white shadow-lg shadow-teal-100"><Icon name="beer" size={24} /></div>
-                                <div className="text-left leading-tight text-left">
-                                    <h1 className="text-xl font-black text-slate-800 tracking-tight text-left">首爾喝掛之旅</h1>
-                                    <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1 text-left">友誼大考驗</p>
+                                <div className="text-left leading-tight">
+                                    <h1 className="text-xl font-black text-slate-800 tracking-tight">首爾喝掛之旅</h1>
+                                    <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">友誼大考驗</p>
                                 </div>
                             </div>
                             {activeTab === 'itinerary' && <div className="bg-teal-50 px-3 py-1.5 rounded-full text-[10px] font-black text-teal-700 uppercase shadow-inner">Day {activeDay}</div>}
                         </div>
                         {activeTab === 'itinerary' && (
-                            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 px-1 text-left">
+                            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 px-1">
                                 {dates.map((d, i) => (
                                     <button key={i} onClick={() => setActiveDay(i + 1)} className={`flex-none w-14 py-3 rounded-[22px] flex flex-col items-center justify-center transition-all ${activeDay === i + 1 ? 'bg-teal-700 text-white shadow-md' : 'bg-white text-stone-300 border border-stone-50'}`}>
                                         <span className="text-[10px] font-bold uppercase mb-0.5">{d.d}</span>
@@ -247,13 +259,13 @@
                     <main className="px-5 pt-4 max-w-xl mx-auto space-y-6 relative z-10 text-left text-sm font-medium">
                         {/* --- 1. 行程 --- */}
                         {activeTab === 'itinerary' && (
-                            <div className="space-y-6 pb-20 text-left">
-                                <div className="bg-white rounded-[30px] p-5 flex items-start gap-4 border border-stone-200 shadow-sm card-shadow text-left">
+                            <div className="space-y-6 pb-20">
+                                <div className="bg-white rounded-[30px] p-5 border border-stone-200 shadow-sm flex items-start gap-4">
                                     <div className="bg-blue-50 p-2.5 rounded-2xl text-blue-500 shadow-inner mt-1"><Icon name="cloud-sun" size={28} /></div>
                                     <div className="text-left">
-                                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest text-left">4月氣候參考</p>
-                                        <p className="text-base font-black text-slate-700 mt-1 text-left">8°C ~ 19°C (溫差大)</p>
-                                        <p className="text-[10px] text-rose-400 font-bold mt-1 leading-relaxed italic text-left">⚠️ 晚上喝完酒吹風極冷，務必帶外套！</p>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">4月氣候參考</p>
+                                        <p className="text-base font-black text-slate-700 mt-1">8°C ~ 19°C (溫差大)</p>
+                                        <p className="text-[10px] text-rose-400 font-bold mt-1 leading-relaxed italic">⚠️ 晚上喝完酒吹風極冷，務必帶外套！</p>
                                     </div>
                                 </div>
                                 <div className="space-y-3">
@@ -263,28 +275,28 @@
                                             <div key={item.id}>
                                                 <div className="flex items-center gap-4 px-6 h-10 text-left">
                                                     <div className="w-[2px] h-full bg-stone-200 relative flex items-center justify-center"><Icon name="car" size={12} className="text-stone-300" /></div>
-                                                    <span className="text-[9px] font-black text-teal-600 uppercase text-left">Taxi 預估 {10+idx*10} mins</span>
+                                                    <span className="text-[9px] font-black text-teal-600 uppercase">Taxi 預估 {10+idx*10} mins</span>
                                                 </div>
                                                 <div className={`bg-white rounded-[35px] border ${s.border} shadow-sm p-5 space-y-4`}>
                                                     <div className="flex gap-4">
-                                                        <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center ${s.bg} ${s.text} border ${s.border} shadow-inner`}>{s.icon && <Icon name={s.icon} size={20} />}</div>
+                                                        <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center ${s.bg} ${s.text} border ${s.border} shadow-inner`}><Icon name={s.icon} size={20} /></div>
                                                         <div className="flex-1 min-w-0 text-left">
                                                             <div className="flex justify-between items-start">
-                                                                <div className="flex items-center gap-2 text-left">
-                                                                    <span className="text-[10px] font-bold text-stone-400 text-left">{item.time}</span>
-                                                                    <span className={`${s.badge} text-[8px] px-2 py-0.5 rounded-full font-black uppercase text-left`}>{item.type}</span>
-                                                                    {item.status === 'booked' && <span className="bg-rose-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black text-left uppercase">已訂位</span>}
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] font-bold text-stone-400">{item.time}</span>
+                                                                    <span className={`${s.badge} text-[8px] px-2 py-0.5 rounded-full font-black uppercase`}>{item.type}</span>
+                                                                    {item.status === 'booked' && <span className="bg-rose-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">已訂位</span>}
                                                                 </div>
-                                                                <button onClick={() => { setEditingItem(item); setItinForm(item); setShowModal('itinerary'); }} className="text-stone-300 active:scale-95 text-left"><Icon name="more-vertical" size={18}/></button>
+                                                                <button onClick={() => { setEditingItem(item); setItinForm(item); setShowModal('itinerary'); }} className="text-stone-300 active:scale-95"><Icon name="more-vertical" size={18}/></button>
                                                             </div>
-                                                            <h4 className="font-black text-slate-800 text-base leading-tight mt-1 text-left">{item.name}</h4>
+                                                            <h4 className="font-black text-slate-800 text-base leading-tight mt-1">{item.name}</h4>
                                                             <p className="text-xs text-stone-400 mt-1 italic text-left">✿ {item.note || 'Enjoy Seoul'}</p>
                                                         </div>
                                                     </div>
                                                     {item.address && (item.address !== 'RMQ' && item.address !== 'ICN') && (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => navigateToNaver(item.address)} className="flex-1 py-3 bg-teal-700 text-white font-bold text-xs rounded-2xl shadow-sm active:bg-teal-800 transition-colors text-left text-center">Naver Map</button>
-                                                            <button onClick={() => { const t=document.createElement('textarea'); t.value=item.address; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); setShowCopyToast(true); setTimeout(()=>setShowCopyToast(false),2000); }} className="px-5 py-3 bg-stone-50 text-stone-600 font-bold text-xs rounded-2xl border border-stone-100 text-left text-center">複製</button>
+                                                            <button onClick={() => navigateToNaver(item.address)} className="flex-1 py-3 bg-teal-700 text-white font-bold text-xs rounded-2xl shadow-sm active:bg-teal-800 transition-colors">Naver Map</button>
+                                                            <button onClick={() => { const t=document.createElement('textarea'); t.value=item.address; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); setShowCopyToast(true); setTimeout(()=>setShowCopyToast(false),2000); }} className="px-5 py-3 bg-stone-50 text-stone-600 font-bold text-xs rounded-2xl border border-stone-100">複製</button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -292,17 +304,17 @@
                                         );
                                     })}
                                 </div>
-                                <button onClick={() => { setEditingItem(null); setItinForm({ type: '美食', name: '', time: '12:00', address: '', note: '' }); setShowModal('itinerary'); }} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white active:scale-90 z-50 shadow-teal-200 text-left"><Icon name="plus" size={32} /></button>
+                                <button onClick={() => { setEditingItem(null); setItinForm({ type: '美食', name: '', time: '12:00', address: '', note: '' }); setShowModal('itinerary'); }} className="fixed bottom-24 right-6 w-16 h-16 bg-teal-700 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white active:scale-90 z-50 shadow-teal-200"><Icon name="plus" size={32} /></button>
                             </div>
                         )}
 
-                        {/* --- 2. 購物 (重點修復版) --- */}
+                        {/* --- 2. 購物 --- */}
                         {activeTab === 'shopping' && (
-                            <div className="space-y-6 pt-4 text-center pb-20 text-left">
-                                <div className="bg-purple-50 p-6 rounded-[35px] border border-purple-100 text-purple-700 text-sm font-medium shadow-sm leading-relaxed text-center text-left">🛒 旅伴同步清單 ♡<br/><span className="text-[10px] opacity-60 text-center text-left">拍下商品照或截圖，血拚更有效率！</span></div>
+                            <div className="space-y-6 pt-4 text-center pb-20">
+                                <div className="bg-purple-50 p-6 rounded-[35px] border border-purple-100 text-purple-700 text-sm font-medium shadow-sm leading-relaxed text-center">🛒 共同同步購物籃 ♡<br/><span className="text-[10px] opacity-60">拍下商品照片，血拚更直覺！</span></div>
                                 <div className="grid grid-cols-2 gap-4">
                                     {shoppingList.map(item => (
-                                        <div key={item.id} className="bg-white rounded-[30px] border border-purple-100 p-4 relative group shadow-sm overflow-hidden text-left text-left">
+                                        <div key={item.id} className="bg-white rounded-[30px] border border-purple-100 p-4 relative group shadow-sm overflow-hidden text-left">
                                             <div className="aspect-square bg-purple-50 rounded-2xl flex items-center justify-center border border-purple-100 shadow-inner overflow-hidden text-left">
                                                 {item.img ? <img src={item.img} className="img-preview" /> : <Icon name="image" size={32} className="text-purple-200 opacity-40 text-left" />}
                                             </div>
@@ -311,18 +323,18 @@
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={() => setShowModal('shopping')} className="fixed bottom-24 right-6 w-16 h-16 bg-purple-600 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white active:scale-90 z-50 shadow-purple-200 text-left"><Icon name="plus" size={32} /></button>
+                                <button onClick={() => setShowModal('shopping')} className="fixed bottom-24 right-6 w-16 h-16 bg-purple-600 text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white active:scale-90 z-50 shadow-purple-200"><Icon name="plus" size={32} /></button>
                             </div>
                         )}
 
                         {/* --- 3. 花費 --- */}
                         {activeTab === 'spending' && (
-                            <div className="space-y-6 pb-20 text-left">
-                                <div className="bg-slate-800 rounded-[40px] p-8 text-white shadow-xl relative overflow-hidden text-center border-b-8 border-teal-600 text-left">
+                            <div className="space-y-6 pb-20 text-left text-left">
+                                <div className="bg-slate-800 rounded-[40px] p-8 text-white shadow-xl relative overflow-hidden text-center border-b-8 border-teal-600 text-left text-left">
                                     <div className="relative z-10 text-left">
-                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1 text-left">Total Group Cost</p>
-                                        <h2 className="text-4xl font-black italic tracking-tight mb-6 leading-none text-left">{totalKRW.toLocaleString()} <span className="text-sm font-normal opacity-40 uppercase text-left">KRW</span></h2>
-                                        <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
+                                        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1 text-left">Total Trip Cost</p>
+                                        <h2 className="text-4xl font-black italic tracking-tight mb-6 text-left">{totalKRW.toLocaleString()} <span className="text-sm font-normal opacity-40 uppercase text-left">KRW</span></h2>
+                                        <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center text-left">
                                             {travelers.map(t => (
                                                 <div key={t}>
                                                     <p className="text-[9px] text-stone-400 font-bold uppercase mb-1 text-center">{t}</p>
@@ -340,10 +352,10 @@
                                         <div key={s.id} className="bg-white rounded-[25px] p-4 border border-stone-200 shadow-sm flex items-center gap-4 relative group text-left">
                                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-xs bg-stone-50 text-teal-600 shadow-inner text-center`}>＄</div>
                                             <div className="flex-1 min-w-0 text-left">
-                                                <div className="flex justify-between items-center mb-0.5 text-left text-left"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-tighter text-left">{s.date}</span><div className="flex gap-1 text-left"><span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${s.method === '信用卡' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'} text-left`}>{s.method}</span><span className="text-[8px] font-bold px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-left">{s.paidBy}</span></div></div>
+                                                <div className="flex justify-between items-center mb-0.5 text-left"><span className="text-[9px] font-bold text-stone-400 uppercase text-left">{s.date}</span><div className="flex gap-1 text-left"><span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${s.method === '信用卡' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'} text-left`}>{s.method}</span><span className="text-[8px] font-bold px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-left">{s.paidBy}</span></div></div>
                                                 <h4 className="font-bold text-slate-800 leading-tight truncate text-left">{s.name}</h4>
                                             </div>
-                                            <div className="text-right text-left text-left"><p className="font-black text-teal-700 leading-none text-right">{parseFloat(s.amount).toLocaleString()}</p></div>
+                                            <div className="text-right text-left"><p className="font-black text-teal-700 leading-none text-right">{parseFloat(s.amount).toLocaleString()}</p></div>
                                             <button onClick={() => setShowDeleteConfirm({ col: 'spending', id: s.id })} className="absolute -right-2 -top-2 bg-rose-500 text-white rounded-full p-1 shadow-md transition-opacity opacity-0 group-hover:opacity-100 text-left"><Icon name="x" size={12}/></button>
                                         </div>
                                     ))}
@@ -364,23 +376,20 @@
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-3 text-left">
-                                        <div className="text-center space-y-1 text-left text-center"><p className="text-[9px] font-black text-stone-300 uppercase text-center">KRW 韓幣</p><input type="number" value={krw} onChange={e => { setKrw(e.target.value); setTwd(e.target.value ? (e.target.value/rate).toFixed(0) : ''); }} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-teal-700 border border-transparent focus:border-teal-500 w-full text-center shadow-inner text-center" /></div>
+                                        <div className="text-center space-y-1 text-left text-center"><p className="text-[9px] font-black text-stone-300 uppercase text-center text-center">KRW 韓幣</p><input type="number" value={krw} onChange={e => { setKrw(e.target.value); setTwd(e.target.value ? (e.target.value/rate).toFixed(0) : ''); }} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-teal-700 border border-transparent focus:border-teal-500 w-full text-center shadow-inner text-center" /></div>
                                         <div className="text-stone-300 mt-4 text-center text-center"><Icon name="arrow-left-right" size={18} /></div>
-                                        <div className="text-center space-y-1 text-left text-center"><p className="text-[9px] font-black text-stone-300 uppercase text-center">TWD 台幣</p><input type="number" value={twd} onChange={e => { setTwd(e.target.value); setKrw(e.target.value ? (e.target.value*rate).toFixed(0) : ''); }} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-slate-800 border border-transparent focus:border-stone-400 w-full text-center shadow-inner text-center" /></div>
+                                        <div className="text-center space-y-1 text-left text-center"><p className="text-[9px] font-black text-stone-300 uppercase text-center text-center">TWD 台幣</p><input type="number" value={twd} onChange={e => { setTwd(e.target.value); setKrw(e.target.value ? (e.target.value*rate).toFixed(0) : ''); }} className="bg-stone-50 p-5 rounded-[25px] outline-none font-black text-xl text-slate-800 border border-transparent focus:border-stone-400 w-full text-center shadow-inner text-center" /></div>
                                     </div>
                                 </section>
                                 <section className="space-y-4 text-left">
-                                    <div className="flex items-center justify-between px-2 text-left">
-                                        <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 uppercase tracking-widest text-left text-left"><Icon name="ticket" size={18} /> 機票資訊 (台中 RMQ)</h3>
-                                        <div className="bg-teal-50 px-3 py-1 rounded-full text-teal-600 text-[10px] font-bold flex items-center gap-1 shadow-sm text-left"><Icon name="timer" size={12}/>總飛行: 4h 40m</div>
-                                    </div>
+                                    <h3 className="text-sm font-bold flex items-center gap-2 text-teal-700 uppercase tracking-widest px-2 text-left"><Icon name="ticket" size={18} /> 修正後機票資訊</h3>
                                     <div className="bg-white rounded-[30px] shadow-sm border border-stone-100 border-l-[10px] border-l-teal-600 p-6 space-y-5 text-left text-sm text-left">
                                         <div className="flex justify-between items-center border-b border-stone-50 pb-4 text-left text-left">
-                                            <div className="text-left leading-relaxed text-left text-left"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest text-left">去程 ✈️ 04/16</span><p className="font-black text-teal-600 mt-1 text-left uppercase text-left">KE2032 (17:55 - 21:35)</p></div>
+                                            <div className="text-left leading-relaxed text-left text-left text-left"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest text-left text-left text-left">去程 Outbound 04/16</span><p className="font-black text-teal-600 mt-1 text-left uppercase text-left text-left">KE2032 (17:55 - 21:35)</p></div>
                                             <div className="bg-teal-50 px-2 py-0.5 rounded text-[10px] font-bold text-teal-600 text-center">RMQ → ICN</div>
                                         </div>
-                                        <div className="flex justify-between items-center opacity-80 pt-2 text-left text-sm text-left">
-                                            <div className="text-left leading-relaxed text-left text-left text-left"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest text-left">回程 ✈️ 04/21</span><p className="font-black text-emerald-600 mt-1 text-left uppercase text-left">KE2031 (14:45 - 16:45)</p></div>
+                                        <div className="flex justify-between items-center opacity-80 pt-2 text-left text-sm text-left text-left">
+                                            <div className="text-left leading-relaxed text-left text-left text-left text-left"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest text-left text-left">回程 Return 04/21</span><p className="font-black text-emerald-600 mt-1 text-left uppercase text-left text-left">KE2031 (14:45 - 16:45)</p></div>
                                             <div className="bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-bold text-emerald-600 text-center">ICN → RMQ</div>
                                         </div>
                                     </div>
@@ -390,23 +399,23 @@
                     </main>
 
                     {/* Bottom Nav */}
-                    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 px-6 py-4 flex justify-between items-center z-[90] rounded-t-[40px] shadow-2xl shadow-stone-200 text-left text-left text-left">
+                    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 px-6 py-4 flex justify-between items-center z-[90] rounded-t-[40px] shadow-2xl shadow-stone-200 text-left text-left">
                         <button onClick={() => setActiveTab('itinerary')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-stone-300'} text-left`}><Icon name="calendar" size={20} /><span className="text-[9px] font-black uppercase text-left">行程</span></button>
                         <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'shopping' ? 'tab-active' : 'text-stone-300'} text-left`}><Icon name="shopping-basket" size={20} /><span className="text-[9px] font-black uppercase text-left">購物</span></button>
                         <button onClick={() => setActiveTab('spending')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'spending' ? 'tab-active' : 'text-stone-300'} text-left`}><Icon name="coins" size={20} /><span className="text-[9px] font-black uppercase text-left">花費</span></button>
                         <button onClick={() => setActiveTab('info')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'info' ? 'tab-active' : 'text-stone-300'} text-left`}><Icon name="info" size={20} /><span className="text-[9px] font-black uppercase text-left">資訊</span></button>
                     </nav>
 
-                    {/* --- 刪除確認視窗 --- */}
+                    {/* --- 自定義刪除確認視窗 --- */}
                     {showDeleteConfirm && (
                         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md text-left">
-                            <div className="bg-white w-full max-w-xs rounded-[40px] p-8 text-center shadow-2xl modal-up text-left">
-                                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-500 text-left"><Icon name="alert-triangle" size={32} /></div>
+                            <div className="bg-white w-full max-w-xs rounded-[40px] p-8 text-center shadow-2xl modal-up text-left text-left">
+                                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-500 text-left text-left"><Icon name="alert-triangle" size={32} /></div>
                                 <h3 className="text-xl font-black text-slate-800 mb-2 text-center text-center">確定要移除嗎？</h3>
                                 <p className="text-sm text-slate-400 font-medium mb-8 text-center text-center">項目移除後同步消失 ♡</p>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 py-4 bg-stone-100 text-stone-500 font-bold rounded-2xl active:scale-95 transition-transform text-center">取消</button>
-                                    <button onClick={executeDelete} className="flex-1 py-4 bg-rose-500 text-white font-bold rounded-2xl active:scale-95 transition-transform text-center">確定</button>
+                                <div className="flex gap-3 text-left text-left">
+                                    <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 py-4 bg-stone-100 text-stone-500 font-bold rounded-2xl active:scale-95 transition-transform text-center text-left">取消</button>
+                                    <button onClick={executeDelete} className="flex-1 py-4 bg-rose-500 text-white font-bold rounded-2xl active:scale-95 transition-transform text-center text-left">確定</button>
                                 </div>
                             </div>
                         </div>
@@ -414,20 +423,20 @@
 
                     {/* --- Modals (Itinerary, Shopping, Spending) --- */}
                     {showModal === 'itinerary' && (
-                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 text-left">
+                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 text-left text-left">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
                             <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left modal-up text-left text-left">
-                                <h2 className="text-xl font-bold text-slate-800 mb-6 text-left">編輯行程 ♡</h2>
+                                <h2 className="text-xl font-bold text-slate-800 mb-6 text-left text-left">編輯行程 ♡</h2>
                                 <div className="space-y-4 text-left text-left">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="text-left"><label className="text-xs font-bold text-stone-400 uppercase text-left">類別</label><select className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1 text-left" value={itinForm.type} onChange={e => setItinForm({...itinForm, type: e.target.value})}>{Object.keys(CATEGORY_STYLES).map(k => <option key={k}>{k}</option>)}</select></div>
-                                        <div className="text-left"><label className="text-xs font-bold text-stone-400 uppercase text-left">時間</label><input type="time" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1 text-left" value={itinForm.time} onChange={e => setItinForm({...itinForm, time: e.target.value})} /></div>
+                                        <div className="text-left text-left text-left"><label className="text-xs font-bold text-stone-400 uppercase text-left text-left">類別</label><select className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1 text-left text-left" value={itinForm.type} onChange={e => setItinForm({...itinForm, type: e.target.value})}>{Object.keys(CATEGORY_STYLES).map(k => <option key={k}>{k}</option>)}</select></div>
+                                        <div className="text-left text-left text-left"><label className="text-xs font-bold text-stone-400 uppercase text-left text-left">時間</label><input type="time" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1 text-left text-left" value={itinForm.time} onChange={e => setItinForm({...itinForm, time: e.target.value})} /></div>
                                     </div>
-                                    <input type="text" placeholder="地點名稱" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none text-left" value={itinForm.name} onChange={e => setItinForm({...itinForm, name: e.target.value})} />
-                                    <input type="text" placeholder="韓文地址" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none text-left" value={itinForm.address} onChange={e => setItinForm({...itinForm, address: e.target.value})} />
-                                    <div className="flex gap-2 mt-4 text-left">
+                                    <input type="text" placeholder="地點名稱" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none text-left text-left" value={itinForm.name} onChange={e => setItinForm({...itinForm, name: e.target.value})} />
+                                    <input type="text" placeholder="韓文地址" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none text-left text-left" value={itinForm.address} onChange={e => setItinForm({...itinForm, address: e.target.value})} />
+                                    <div className="flex gap-2 mt-4 text-left text-left">
                                         {editingItem && <button onClick={() => setShowDeleteConfirm({ col: 'itineraries', id: editingItem.id })} className="w-14 h-14 bg-rose-50 text-rose-400 rounded-2xl flex items-center justify-center border border-rose-100 text-left text-left"><Icon name="trash-2" size={24}/></button>}
-                                        <button onClick={handleSaveItin} className="flex-1 bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform text-center">確認儲存 ♡</button>
+                                        <button onClick={handleSaveItin} className="flex-1 bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform text-center text-left text-center">確認儲存 ♡</button>
                                     </div>
                                 </div>
                             </div>
@@ -435,52 +444,51 @@
                     )}
 
                     {showModal === 'shopping' && (
-                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 text-left">
+                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 text-left text-left">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
                             <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-purple-700 text-left modal-up text-left text-left">
-                                <h2 className="text-xl font-bold text-slate-800 mb-6 text-left">新增想買的 ♡</h2>
+                                <h2 className="text-xl font-bold text-slate-800 mb-6 text-left text-left">新增想買的 ♡</h2>
                                 <div className="space-y-6 text-left text-left">
-                                    <label className="w-full aspect-video bg-stone-50 rounded-[30px] border-2 border-dashed border-stone-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shadow-inner text-left text-left">
-                                        {shoppingForm.img ? <img src={shoppingForm.img} className="img-preview" /> : <><Icon name="camera" size={32} className="text-stone-300 mb-2 text-left" /><span className="text-xs text-stone-400 font-bold uppercase tracking-widest text-center text-left">點擊拍照或上傳截圖</span></>}
-                                        <input type="file" accept="image/*" className="hidden text-left" onChange={(e) => { const file = e.target.files[0]; if(file) { const reader = new FileReader(); reader.onloadend = () => setShoppingForm({...shoppingForm, img: reader.result}); reader.readAsDataURL(file); } }} />
+                                    <label className="w-full aspect-video bg-stone-50 rounded-[30px] border-2 border-dashed border-stone-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shadow-inner text-left text-left text-left">
+                                        {shoppingForm.img ? <img src={shoppingForm.img} className="img-preview text-left" /> : <><Icon name="camera" size={32} className="text-stone-300 mb-2 text-left text-left" /><span className="text-xs text-stone-400 font-bold uppercase tracking-widest text-center text-left text-left text-center">點擊拍照或上傳截圖</span></>}
+                                        <input type="file" accept="image/*" className="hidden text-left text-left text-left text-left" onChange={(e) => { const file = e.target.files[0]; if(file) { const reader = new FileReader(); reader.onloadend = () => setShoppingForm({...shoppingForm, img: reader.result}); reader.readAsDataURL(file); } }} />
                                     </label>
-                                    <input type="text" placeholder="商品名稱" className="w-full bg-stone-100 rounded-xl p-4 text-sm font-bold border-none outline-none text-left" value={shoppingForm.name} onChange={e => setShoppingForm({...shoppingForm, name: e.target.value})} />
-                                    <button onClick={handleAddShopping} className="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform shadow-purple-100 text-center text-center">加入清單 ♡</button>
+                                    <input type="text" placeholder="商品名稱" className="w-full bg-stone-100 rounded-xl p-4 text-sm font-bold border-none outline-none text-left text-left text-left text-left" value={shoppingForm.name} onChange={e => setShoppingForm({...shoppingForm, name: e.target.value})} />
+                                    <button onClick={handleAddShopping} className="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-transform shadow-purple-100 text-center text-left text-left text-center text-center">加入清單 ♡</button>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     {showModal === 'spending' && (
-                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 text-left text-left">
+                        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 text-left text-left text-left">
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowModal(null)}></div>
-                            <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left text-sm modal-up text-left text-left text-left">
-                                <h2 className="text-xl font-bold text-slate-800 mb-6 uppercase tracking-tight text-left text-left text-left">新增開銷 ＄</h2>
-                                <div className="space-y-4 text-left text-left text-left text-left">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="text-left text-left text-left"><label className="text-xs font-bold text-stone-400 uppercase tracking-widest leading-none text-left text-left">日期</label><input type="date" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none mt-1 outline-none text-left" value={spendForm.date} onChange={e => setSpendForm({...spendForm, date: e.target.value})} /></div>
-                                        <div className="text-left text-left text-left text-left"><label className="text-xs font-bold text-stone-400 uppercase tracking-widest leading-none text-left text-left text-left">金額 (KRW)</label><input type="number" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1 text-left" value={spendForm.amount} onChange={e => setSpendForm({...spendForm, amount: e.target.value})} /></div>
+                            <div className="bg-white w-full max-w-md rounded-t-[40px] p-8 relative shadow-2xl border-t-8 border-teal-700 text-left text-sm modal-up text-left text-left text-left text-left">
+                                <h2 className="text-xl font-bold text-slate-800 mb-6 uppercase tracking-tight text-left text-left text-left text-left">新增開銷 ＄</h2>
+                                <div className="space-y-4 text-left text-left text-left text-left text-left">
+                                    <div className="grid grid-cols-2 gap-4 text-left text-left text-left text-left">
+                                        <div className="text-left text-left text-left text-left text-left text-left"><label className="text-xs font-bold text-stone-400 uppercase tracking-widest leading-none text-left text-left text-left text-left text-left">日期</label><input type="date" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none mt-1 outline-none text-left text-left text-left text-left" value={spendForm.date} onChange={e => setSpendForm({...spendForm, date: e.target.value})} /></div>
+                                        <div className="text-left text-left text-left text-left text-left text-left text-left"><label className="text-xs font-bold text-stone-400 uppercase tracking-widest leading-none text-left text-left text-left text-left text-left text-left">金額 (KRW)</label><input type="number" className="w-full bg-stone-50 rounded-xl p-3 text-sm font-bold border-none outline-none mt-1 text-left text-left text-left text-left text-left" value={spendForm.amount} onChange={e => setSpendForm({...spendForm, amount: e.target.value})} /></div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        {['現金', '信用卡'].map(m => <button key={m} onClick={() => setSpendForm({...spendForm, method: m})} className={`flex-1 py-3 rounded-xl font-bold text-xs ${spendForm.method === m ? 'bg-indigo-600 text-white shadow-md' : 'bg-stone-100 text-stone-400 border'} text-center text-left`}>{m}</button>)}
+                                    <div className="flex gap-2 text-left text-left text-left text-left">
+                                        {['現金', '信用卡'].map(m => <button key={m} onClick={() => setSpendForm({...spendForm, method: m})} className={`flex-1 py-3 rounded-xl font-bold text-xs ${spendForm.method === m ? 'bg-indigo-600 text-white shadow-md' : 'bg-stone-100 text-stone-400 border'} text-center text-left text-left text-left text-left`}>{m}</button>)}
                                     </div>
-                                    <div className="bg-stone-50 p-4 rounded-3xl border border-stone-100 space-y-3 shadow-inner text-left text-left">
-                                        <div className="text-left text-left text-left text-left"><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest text-left text-left text-left text-left">誰付錢？</label><div className="flex gap-2 mt-1 text-left text-left">{travelers.map(t => <button key={t} onClick={() => setSpendForm({...spendForm, paidBy: t})} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.paidBy === t ? 'bg-teal-600 text-white shadow-sm' : 'bg-white text-stone-400 border border-stone-100'} text-left text-left`}>{t}</button>)}</div></div>
-                                        <div className="text-left text-left text-left text-left"><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest text-left text-left text-left text-left">分攤名單？</label><div className="flex gap-2 mt-1 text-left text-left">{travelers.map(t => <button key={t} onClick={() => { const cur = spendForm.splitBetween; setSpendForm({...spendForm, splitBetween: cur.includes(t) ? cur.filter(p => p !== t) : [...cur, t]})}} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.splitBetween.includes(t) ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' : 'bg-white text-stone-300 border border-stone-100'} text-left text-left`}>{t}</button>)}</div></div>
+                                    <div className="bg-stone-50 p-4 rounded-3xl border border-stone-100 space-y-3 shadow-inner text-left text-left text-left text-left text-left">
+                                        <div className="text-left text-left text-left text-left text-left text-left text-left text-left text-left"><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest text-left text-left text-left text-left text-left text-left text-left">誰付錢？</label><div className="flex gap-2 mt-1 text-left text-left text-left text-left text-left text-left text-left">{travelers.map(t => <button key={t} onClick={() => setSpendForm({...spendForm, paidBy: t})} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.paidBy === t ? 'bg-teal-600 text-white shadow-sm' : 'bg-white text-stone-400 border border-stone-100'} text-left text-left text-left text-left text-left`}>{t}</button>)}</div></div>
+                                        <div className="text-left text-left text-left text-left text-left text-left text-left text-left text-left"><label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest text-left text-left text-left text-left text-left text-left text-left">分攤名單？</label><div className="flex gap-2 mt-1 text-left text-left text-left text-left text-left text-left text-left">{travelers.map(t => <button key={t} onClick={() => { const cur = spendForm.splitBetween; setSpendForm({...spendForm, splitBetween: cur.includes(t) ? cur.filter(p => p !== t) : [...cur, t]})}} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${spendForm.splitBetween.includes(t) ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' : 'bg-white text-stone-300 border border-stone-100'} text-left text-left text-left text-left text-left`}>{t}</button>)}</div></div>
                                     </div>
-                                    <input type="text" placeholder="消費名稱" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none text-left text-left" value={spendForm.name} onChange={e => setSpendForm({...spendForm, name: e.target.value})} />
+                                    <input type="text" placeholder="消費名稱" className="w-full bg-stone-100 rounded-xl p-3 text-sm font-bold border-none outline-none text-left text-left text-left text-left text-left text-left" value={spendForm.name} onChange={e => setSpendForm({...spendForm, name: e.target.value})} />
                                     <button onClick={async () => { 
                                         if(!spendForm.amount || !spendForm.name) return;
-                                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-drink-final-v10-fixed-shopping';
+                                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'seoul-trip-v10-final-fix';
                                         if(user.uid === 'local'){
                                             const nl = [{...spendForm, id: Math.random().toString()}, ...spendingList];
-                                            setSpendingList(nl); localStorage.setItem('local_sp_v2', JSON.stringify(nl));
+                                            setSpendingList(nl); localStorage.setItem('s_sp_v3', JSON.stringify(nl));
                                         } else {
-                                            const db = firebase.firestore();
-                                            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('spending').add(spendForm);
+                                            await firebase.firestore().collection('artifacts').doc(appId).collection('public').doc('data').collection('spending').add(spendForm);
                                         }
                                         setShowModal(null);
-                                    }} className="w-full bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg mt-4 active:scale-95 transition-transform text-center">確認儲存 ＄</button>
+                                    }} className="w-full bg-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg mt-4 active:scale-95 transition-transform text-center text-left text-left text-left text-left text-left text-center text-center">確認儲存 ＄</button>
                                 </div>
                             </div>
                         </div>
